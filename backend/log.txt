@@ -1,0 +1,126 @@
+成功日志：
+2025-04-24 15:17:17,001 - httpx - INFO - HTTP Request: POST https://api.deepl.com/v2/document "HTTP/1.1 200 OK"
+2025-04-24 15:17:17,739 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:20,520 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:23,301 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:26,031 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:28,803 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:31,611 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:34,327 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:37,118 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:40,512 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:43,409 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:46,426 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:49,430 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:52,448 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:55,447 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:58,405 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+2025-04-24 15:17:59,323 - httpx - INFO - HTTP Request: GET https://api.deepl.com/v2/document/366631DF62B8217D0109E5BD819D6408/result?auth_key=2cb57d5a-7a60-48e6-b6e9-6d1c316c5e5f&document_key=C319B07CFCB8EFC97FD9DA11F8899AD64632E6A22C6618D752972CE8D60C394A "HTTP/1.1 200 OK"
+
+
+控制台错误信息：
+Error: 
+INFO:     127.0.0.1:59845 - "POST /api/translate HTTP/1.1" 500 Internal Server Error
+
+前端请求：Request URL:
+http://localhost:8000/api/translate
+Request Method:
+POST
+Status Code:
+500 Internal Server Error
+Remote Address:
+127.0.0.1:8000
+Referrer Policy:
+strict-origin-when-cross-origin
+
+入参数：
+------WebKitFormBoundaryTF5qugKnoTaiouu3
+Content-Disposition: form-data; name="file"; filename="老别pptv4差两页数据-1.pptx"
+Content-Type: application/vnd.openxmlformats-officedocument.presentationml.presentation
+
+
+------WebKitFormBoundaryTF5qugKnoTaiouu3
+Content-Disposition: form-data; name="target_lang"
+
+ID
+------WebKitFormBoundaryTF5qugKnoTaiouu3--
+
+浏览器日志：
+App.tsx:54 
+            
+            
+           POST http://localhost:8000/api/translate 500 (Internal Server Error)
+handleTranslate @ App.tsx:54
+callCallback2 @ chunk-TYILIMWK.js?v=d618be6c:3674
+invokeGuardedCallbackDev @ chunk-TYILIMWK.js?v=d618be6c:3699
+invokeGuardedCallback @ chunk-TYILIMWK.js?v=d618be6c:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-TYILIMWK.js?v=d618be6c:3736
+executeDispatch @ chunk-TYILIMWK.js?v=d618be6c:7014
+processDispatchQueueItemsInOrder @ chunk-TYILIMWK.js?v=d618be6c:7034
+processDispatchQueue @ chunk-TYILIMWK.js?v=d618be6c:7043
+dispatchEventsForPlugins @ chunk-TYILIMWK.js?v=d618be6c:7051
+(anonymous) @ chunk-TYILIMWK.js?v=d618be6c:7174
+batchedUpdates$1 @ chunk-TYILIMWK.js?v=d618be6c:18913
+batchedUpdates @ chunk-TYILIMWK.js?v=d618be6c:3579
+dispatchEventForPluginEventSystem @ chunk-TYILIMWK.js?v=d618be6c:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-TYILIMWK.js?v=d618be6c:5478
+dispatchEvent @ chunk-TYILIMWK.js?v=d618be6c:5472
+dispatchDiscreteEvent @ chunk-TYILIMWK.js?v=d618be6c:5449
+App.tsx:144 Translation error: Error: Upload failed
+    at handleTranslate (App.tsx:62:19)
+handleTranslate @ App.tsx:144
+await in handleTranslate
+callCallback2 @ chunk-TYILIMWK.js?v=d618be6c:3674
+invokeGuardedCallbackDev @ chunk-TYILIMWK.js?v=d618be6c:3699
+invokeGuardedCallback @ chunk-TYILIMWK.js?v=d618be6c:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-TYILIMWK.js?v=d618be6c:3736
+executeDispatch @ chunk-TYILIMWK.js?v=d618be6c:7014
+processDispatchQueueItemsInOrder @ chunk-TYILIMWK.js?v=d618be6c:7034
+processDispatchQueue @ chunk-TYILIMWK.js?v=d618be6c:7043
+dispatchEventsForPlugins @ chunk-TYILIMWK.js?v=d618be6c:7051
+(anonymous) @ chunk-TYILIMWK.js?v=d618be6c:7174
+batchedUpdates$1 @ chunk-TYILIMWK.js?v=d618be6c:18913
+batchedUpdates @ chunk-TYILIMWK.js?v=d618be6c:3579
+dispatchEventForPluginEventSystem @ chunk-TYILIMWK.js?v=d618be6c:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-TYILIMWK.js?v=d618be6c:5478
+dispatchEvent @ chunk-TYILIMWK.js?v=d618be6c:5472
+dispatchDiscreteEvent @ chunk-TYILIMWK.js?v=d618be6c:5449
+App.tsx:54 
+            
+            
+           POST http://localhost:8000/api/translate 500 (Internal Server Error)
+handleTranslate @ App.tsx:54
+callCallback2 @ chunk-TYILIMWK.js?v=d618be6c:3674
+invokeGuardedCallbackDev @ chunk-TYILIMWK.js?v=d618be6c:3699
+invokeGuardedCallback @ chunk-TYILIMWK.js?v=d618be6c:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-TYILIMWK.js?v=d618be6c:3736
+executeDispatch @ chunk-TYILIMWK.js?v=d618be6c:7014
+processDispatchQueueItemsInOrder @ chunk-TYILIMWK.js?v=d618be6c:7034
+processDispatchQueue @ chunk-TYILIMWK.js?v=d618be6c:7043
+dispatchEventsForPlugins @ chunk-TYILIMWK.js?v=d618be6c:7051
+(anonymous) @ chunk-TYILIMWK.js?v=d618be6c:7174
+batchedUpdates$1 @ chunk-TYILIMWK.js?v=d618be6c:18913
+batchedUpdates @ chunk-TYILIMWK.js?v=d618be6c:3579
+dispatchEventForPluginEventSystem @ chunk-TYILIMWK.js?v=d618be6c:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-TYILIMWK.js?v=d618be6c:5478
+dispatchEvent @ chunk-TYILIMWK.js?v=d618be6c:5472
+dispatchDiscreteEvent @ chunk-TYILIMWK.js?v=d618be6c:5449
+App.tsx:144 Translation error: Error: Upload failed
+    at handleTranslate (App.tsx:62:19)
+handleTranslate @ App.tsx:144
+await in handleTranslate
+callCallback2 @ chunk-TYILIMWK.js?v=d618be6c:3674
+invokeGuardedCallbackDev @ chunk-TYILIMWK.js?v=d618be6c:3699
+invokeGuardedCallback @ chunk-TYILIMWK.js?v=d618be6c:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-TYILIMWK.js?v=d618be6c:3736
+executeDispatch @ chunk-TYILIMWK.js?v=d618be6c:7014
+processDispatchQueueItemsInOrder @ chunk-TYILIMWK.js?v=d618be6c:7034
+processDispatchQueue @ chunk-TYILIMWK.js?v=d618be6c:7043
+dispatchEventsForPlugins @ chunk-TYILIMWK.js?v=d618be6c:7051
+(anonymous) @ chunk-TYILIMWK.js?v=d618be6c:7174
+batchedUpdates$1 @ chunk-TYILIMWK.js?v=d618be6c:18913
+batchedUpdates @ chunk-TYILIMWK.js?v=d618be6c:3579
+dispatchEventForPluginEventSystem @ chunk-TYILIMWK.js?v=d618be6c:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-TYILIMWK.js?v=d618be6c:5478
+dispatchEvent @ chunk-TYILIMWK.js?v=d618be6c:5472
+dispatchDiscreteEvent @ chunk-TYILIMWK.js?v=d618be6c:5449

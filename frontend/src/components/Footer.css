@@ -1,0 +1,42 @@
+.footer {
+  width: 100%;
+  padding: 16px 0;
+  background-color: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+  margin-top: auto; /* 确保footer始终在底部 */
+}
+
+.footer-content {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.copyright {
+  color: #666;
+  font-size: 14px;
+}
+
+/* 调整语言切换器在页脚中的样式 */
+.footer .language-switch {
+  padding: 4px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+}
+
+.footer .language-switch:hover {
+  border-color: var(--primary-color);
+}
+
+.footer .language-switch:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+}
