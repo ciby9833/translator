@@ -16,7 +16,7 @@ const FileUpload = ({ onFileSelect, selectedFile, disabled }: FileUploadProps) =
     const file = acceptedFiles[0]
     if (file) {
       if (file.size > 30 * 1024 * 1024) { // 30MB
-        alert(t('upload.fileTooLarge'))
+        alert(t('error.fileTooLarge'))
         return
       }
       onFileSelect(file)
@@ -56,6 +56,9 @@ const FileUpload = ({ onFileSelect, selectedFile, disabled }: FileUploadProps) =
             <p className="file-size">
               {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
             </p>
+            {selectedFile.size > 15 * 1024 * 1024 && (
+              <p className="warning">{t('upload.largeFileWarning')}</p>
+            )}
           </div>
         ) : (
           <p>

@@ -177,3 +177,154 @@
     border: 1px solid #ffccc7;
     border-radius: 4px;
   }
+  
+  .language-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin: 1rem 0;
+  }
+  
+  .glossary-control {
+    display: flex;
+    align-items: center;
+    margin-left: 1rem;
+  }
+  
+  .glossary-control label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+  
+  .glossary-control input[type="checkbox"] {
+    margin: 0;
+  }
+  
+  .main-tabs {
+    margin-top: 1rem;
+  }
+  
+  .main-tabs .ant-tabs-content {
+    min-height: 500px;
+  }
+  
+  /* 术语表管理相关样式 */
+  .glossary-manager {
+    padding: 1rem;
+  }
+  
+  .glossary-table {
+    margin-top: 1rem;
+  }
+  
+  .glossary-form {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .glossary-entries-modal {
+    min-width: 800px;
+  }
+  
+  /* 确保卡片样式在标签页中正常显示 */
+  .ant-tabs-tabpane .card {
+    margin: 0;
+    box-shadow: none;
+    padding: 1rem;
+  }
+  
+  /* 调整表格样式 */
+  .ant-table-wrapper {
+    margin-top: 1rem;
+  }
+  
+  .ant-table {
+    background: white;
+    border-radius: 8px;
+  }
+  
+  /* 调整按钮间距 */
+  .ant-space {
+    gap: 8px !important;
+  }
+  
+  /* 在现有样式后添加 */
+  .glossary-search-card {
+    margin-bottom: 20px;
+  }
+  
+  .search-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  
+  .glossary-list-container {
+    padding: 20px;
+  }
+  
+  .ant-table-wrapper {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .ant-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* 术语表数据库搜索相关样式 */
+  .glossary-database-search {
+    padding: 20px;
+  }
+  
+  .search-form-card {
+    margin-bottom: 20px;
+  }
+  
+  .search-results-card {
+    margin-top: 20px;
+  }
+  
+  .glossary-entry-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  
+  .source-term {
+    color: #1890ff;
+  }
+  
+  .arrow {
+    color: #8c8c8c;
+  }
+  
+  .target-term {
+    color: #52c41a;
+  }
+  
+  .search-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  
+  /* 表格样式优化 */
+  .glossary-results-table {
+    margin-top: 16px;
+  }
+  
+  .glossary-results-table .ant-table-thead > tr > th {
+    background: #fafafa;
+    font-weight: 600;
+  }
+  
+  .glossary-results-table .ant-table-tbody > tr:hover > td {
+    background: #f5f5f5;
+  }

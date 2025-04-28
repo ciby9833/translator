@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './TextTranslate.css';
+import { translateText } from '../services/api';
 
 interface TextTranslateProps {
   disabled?: boolean;
@@ -59,20 +60,11 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
 
   const handleTranslate = async () => {
     if (!sourceText.trim()) return;
-
     setIsTranslating(true);
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.append('text', sourceText);
-      formData.append('target_lang', targetLang);
-
-      const response = await fetch('http://localhost:8000/api/translate/text', {
-        method: 'POST',
-        body: formData,
-      });
-
+      const response = await translateText(sourceText, targetLang);
       if (!response.ok) {
         throw new Error(await response.text());
       }
@@ -80,7 +72,7 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
       const result = await response.json();
       setTranslatedText(result.translations[0].text);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Translation failed');
+      setError(t('error.translationFailed'));
     } finally {
       setIsTranslating(false);
     }

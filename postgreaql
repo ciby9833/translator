@@ -1,0 +1,57 @@
+
+-- 创建术语表主表
+CREATE TABLE glossaries (
+    id SERIAL PRIMARY KEY,
+    deepl_glossary_id VARCHAR(255) UNIQUE,  -- DeepL 平台返回的术语表 ID
+    name VARCHAR(255) NOT NULL,             -- 术语表名称
+    source_lang VARCHAR(10) NOT NULL,       -- 源语言代码
+    target_lang VARCHAR(10) NOT NULL,       -- 目标语言代码
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- 确保每个语言对只有一个术语表
+    CONSTRAINT uix_lang_pair UNIQUE (source_lang, target_lang),
+    -- 确保语言代码格式正确
+    CONSTRAINT chk_source_lang CHECK (source_lang ~ '^[A-Z]{2}(-[A-Z]{2})?$'),
+    CONSTRAINT chk_target_lang CHECK (target_lang ~ '^[A-Z]{2}(-[A-Z]{2})?$')
+);
+
+-- 创建术语条目表
+CREATE TABLE glossary_entries (
+    id SERIAL PRIMARY KEY,
+    glossary_id INTEGER NOT NULL REFERENCES glossaries(id) ON DELETE CASCADE,
+    source_term VARCHAR(1024) NOT NULL,     -- 源语言术语（DeepL 限制 1024 字节）
+    target_term VARCHAR(1024) NOT NULL,     -- 目标语言术语（DeepL 限制 1024 字节）
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- 确保每个术语表中源术语唯一
+    CONSTRAINT uix_glossary_source_term UNIQUE (glossary_id, source_term)
+);
+
+-- 创建索引
+CREATE INDEX idx_glossary_langs ON glossaries(source_lang, target_lang);
+CREATE INDEX idx_glossary_entries_glossary_id ON glossary_entries(glossary_id);
+CREATE INDEX idx_glossary_entries_terms ON glossary_entries(glossary_id, source_term, target_term);
+
+-- 创建更新时间触发器
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_glossaries_updated_at
+    BEFORE UPDATE ON glossaries
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- 创建注释
+COMMENT ON TABLE glossaries IS '术语表主表，存储 DeepL 术语表基本信息';
+COMMENT ON TABLE glossary_entries IS '术语条目表，存储术语对';
+COMMENT ON COLUMN glossaries.deepl_glossary_id IS 'DeepL 平台返回的术语表 ID';
+COMMENT ON COLUMN glossaries.source_lang IS '源语言代码（如 ZH、EN）';
+COMMENT ON COLUMN glossaries.target_lang IS '目标语言代码（如 EN、ID）';
+COMMENT ON COLUMN glossary_entries.source_term IS '源语言术语，最大 1024 字节';
+COMMENT ON COLUMN glossary_entries.target_term IS '目标语言术语，最大 1024 字节';

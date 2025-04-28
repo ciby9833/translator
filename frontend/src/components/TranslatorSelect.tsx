@@ -1,4 +1,4 @@
-// frontend/src/components/TranslatorSelect.tsx   翻译选择器
+// frontend/src/components/TranslatorSelect.tsx   翻译选择器 默认deepl
 import { useTranslation } from 'react-i18next';
 import React, { useEffect } from 'react';
 

@@ -1,5 +1,5 @@
 # backend/main.py
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Body
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
@@ -12,6 +12,17 @@ from enum import Enum
 import logging
 import traceback
 from datetime import datetime
+from services.term_extractor import GeminiTermExtractor
+from services.glossary_manager import GlossaryManager
+from services.document_processor import DocumentProcessor
+from services.document_chunker import DocumentChunker
+import time
+import json
+from sqlalchemy.orm import Session
+from fastapi import Depends
+from database import get_db
+from sqlalchemy.sql import text
+from services.local_glossary_manager import LocalGlossaryManager
 
 # 加载环境变量
 load_dotenv()
@@ -46,105 +57,153 @@ class TranslatorService(ABC):
 class DeepLTranslator(TranslatorService):
     def __init__(self):
         self.api_key = os.getenv("DEEPL_API_KEY")
-        self.api_type = os.getenv("DEEPL_API_TYPE", "free")  # 默认使用 free
+        self.api_type = os.getenv("DEEPL_API_TYPE", "free")
+        self.base_url = "https://api.deepl.com" if self.api_type.lower() == "pro" else "https://api-free.deepl.com"
+        self.api_url = f"{self.base_url}/v2"
         
-        # 根据 API 类型设置基础 URL
-        base_url = "https://api.deepl.com" if self.api_type.lower() == "pro" else "https://api-free.deepl.com"
-        self.api_url = f"{base_url}/v2/document"
-        
-        logger.debug(f"Initializing DeepL translator with API type: {self.api_type}")
-        logger.debug(f"Using API URL: {self.api_url}")
+        # DeepL API 支持的语言代码映射
+        self.lang_code_map = {
+            'zh': 'ZH',    # 中文
+            'en': 'EN',    # 英文
+            'id': 'ID',    # 印尼文
+        }
 
     def is_available(self) -> bool:
         return bool(self.api_key)
 
-    async def translate_document(self, file_content: bytes, filename: str, target_lang: str) -> bytes:
+    def _normalize_lang_code(self, lang_code: str) -> str:
+        """标准化语言代码"""
+        if not lang_code or lang_code.lower() == 'auto':
+            raise ValueError("Source language must be specified when using glossaries")
+            
+        lang_code = lang_code.lower()
+        if lang_code not in self.lang_code_map:
+            raise ValueError(f"Unsupported language code: {lang_code}")
+        return self.lang_code_map[lang_code]
+
+    async def translate_document(self, file_content: bytes, filename: str, source_lang: str, target_lang: str, glossary_id: Optional[str] = None) -> dict:
+        """翻译文档并返回结果"""
         if not self.api_key:
-            logger.error("DeepL API key not configured")
             raise ValueError("DeepL API key not configured")
 
-        logger.info(f"Starting translation for file: {filename}, target language: {target_lang}")
-        logger.debug(f"File size: {len(file_content)} bytes")
+        try:
+            # 在使用术语表时验证源语言
+            if glossary_id and (not source_lang or source_lang.lower() == 'auto'):
+                raise ValueError("Source language must be specified when using glossaries")
 
-        async with httpx.AsyncClient() as client:
-            try:
-                # 1. 上传文档
-                files = {"file": (filename, file_content)}
-                data = {
-                    "auth_key": self.api_key,
-                    "target_lang": target_lang
-                }
-                
-                logger.debug("Sending document to DeepL API")
+            # 标准化语言代码
+            normalized_source_lang = self._normalize_lang_code(source_lang)
+            normalized_target_lang = self._normalize_lang_code(target_lang)
+
+            # 正确的请求格式
+            files = {
+                'file': (filename, file_content)  # DeepL API 要求的格式
+            }
+            data = {
+                'auth_key': self.api_key,
+                'target_lang': normalized_target_lang
+            }
+            
+            # 只有在指定时才添加 source_lang
+            if source_lang and source_lang.lower() != 'auto':
+                data['source_lang'] = normalized_source_lang
+            
+            # 只有在使用术语表时才添加 glossary_id
+            if glossary_id:
+                data['glossary_id'] = glossary_id
+
+            async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    self.api_url,
+                    f"{self.api_url}/document",
                     files=files,
-                    data=data
+                    data=data,  # 使用 data 而不是 json
+                    timeout=30.0
                 )
-                
-                # 记录响应信息
-                logger.debug(f"DeepL API response status: {response.status_code}")
-                logger.debug(f"DeepL API response headers: {dict(response.headers)}")
-                logger.debug(f"DeepL API response body: {response.text}")
 
-                if response.status_code == 403:
-                    logger.error(f"DeepL API authorization failed: {response.text}")
-                    raise ValueError(f"DeepL API authorization failed: {response.text}")
-                
-                response.raise_for_status()
-                upload_result = response.json()
-                
-                document_id = upload_result["document_id"]
-                document_key = upload_result["document_key"]
-                logger.info(f"Document uploaded successfully. ID: {document_id}")
-                
-                # 2. 等待翻译完成
-                while True:
-                    logger.debug(f"Checking translation status for document {document_id}")
-                    status_response = await client.get(
-                        f"{self.api_url}/{document_id}",
-                        params={
-                            "auth_key": self.api_key,
-                            "document_key": document_key
-                        }
-                    )
-                    status = status_response.json()["status"]
-                    logger.debug(f"Translation status: {status}")
-                    
-                    if status == "done":
-                        break
-                    elif status == "error":
-                        error_msg = status_response.json().get("message", "Unknown error")
-                        logger.error(f"Translation failed: {error_msg}")
-                        raise ValueError(f"Translation failed: {error_msg}")
-                    
-                    await asyncio.sleep(1)
-                
-                # 3. 下载翻译结果
-                logger.debug("Downloading translated document")
-                result_response = await client.post(
-                    f"{self.api_url}/{document_id}/result",
-                    data={
-                        "auth_key": self.api_key,
-                        "document_key": document_key
-                    }
+                if response.status_code != 200:
+                    error_msg = response.text
+                    logger.error(f"DeepL API error: {error_msg}")
+                    raise ValueError(f"DeepL API error: {error_msg}")
+
+                return response.json()
+
+        except Exception as e:
+            logger.error(f"Document translation error: {str(e)}")
+            raise
+
+    async def translate_text(self, text: str, target_lang: str, source_lang: Optional[str] = None) -> dict:
+        """翻译文本"""
+        if not self.api_key:
+            raise ValueError("DeepL API key not configured")
+
+        try:
+            data = {
+                "text": [text],
+                "target_lang": self._normalize_lang_code(target_lang)
+            }
+
+            if source_lang:
+                data["source_lang"] = self._normalize_lang_code(source_lang)
+
+            headers = {
+                "Authorization": f"DeepL-Auth-Key {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            async with httpx.AsyncClient() as client:
+                # 使用 v2 endpoint
+                response = await client.post(
+                    f"{self.api_url}/translate",
+                    json=data,
+                    headers=headers
+                )
+
+                if response.status_code != 200:
+                    error_msg = response.text
+                    logger.error(f"DeepL API error: {error_msg}")
+                    raise ValueError(f"DeepL API error: {error_msg}")
+
+                return response.json()
+
+        except Exception as e:
+            logger.error(f"Text translation error: {str(e)}")
+            raise
+
+    async def check_document_status(self, document_id: str, document_key: str) -> dict:
+        """检查文档翻译状态"""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.api_url}/document/{document_id}",
+                    data={'document_key': document_key},  # 使用 data 而不是 json
+                    headers={'Authorization': f"DeepL-Auth-Key {self.api_key}"}
                 )
                 
-                if result_response.status_code != 200:
-                    logger.error(f"Failed to download translation: {result_response.text}")
-                    raise ValueError(f"Failed to download translation: {result_response.text}")
+                if response.status_code != 200:
+                    raise ValueError(f"Status check failed: {response.text}")
+                    
+                return response.json()
+        except Exception as e:
+            logger.error(f"Error checking document status: {str(e)}")
+            raise
+
+    async def get_document_result(self, document_id: str, document_key: str) -> bytes:
+        """获取翻译结果"""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.api_url}/document/{document_id}/result",
+                    data={'document_key': document_key},  # 使用 data 而不是 json
+                    headers={'Authorization': f"DeepL-Auth-Key {self.api_key}"}
+                )
                 
-                logger.info("Translation completed successfully")
-                return result_response.content
-                
-            except httpx.HTTPError as e:
-                logger.error(f"HTTP error during translation: {str(e)}")
-                logger.error(traceback.format_exc())
-                raise ValueError(f"HTTP error during translation: {str(e)}")
-            except Exception as e:
-                logger.error(f"Unexpected error during translation: {str(e)}")
-                logger.error(traceback.format_exc())
-                raise ValueError(f"Translation error: {str(e)}")
+                if response.status_code != 200:
+                    raise ValueError(f"Download failed: {response.text}")
+                    
+                return response.content
+        except Exception as e:
+            logger.error(f"Error downloading document: {str(e)}")
+            raise
 
 # Google翻译服务实现
 class GoogleTranslator(TranslatorService):
@@ -269,149 +328,139 @@ TIMEOUT = 300.0  # 300秒
 @app.post("/api/translate")
 async def translate_document(
     file: UploadFile = File(...),
-    target_lang: str = Form(...)
+    source_lang: str = Form(...),
+    target_lang: str = Form(...),
+    use_glossary: bool = Form(True),
+    db: Session = Depends(get_db)
 ):
     try:
-        # 1. 检查文件大小
-        file_size = 0
-        content = await file.read()  # 直接读取整个文件
-        file_size = len(content)
-            
-        # 检查文件大小是否超过限制
-        if file_size > MAX_FILE_SIZE:
-            logger.error(f"File size ({file_size} bytes) exceeds limit ({MAX_FILE_SIZE} bytes)")
+        # 1. 基础验证
+        if use_glossary and (not source_lang or source_lang.lower() == 'auto'):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_SOURCE_LANGUAGE",
+                    "message": "Source language must be specified when using glossaries"
+                }
+            )
+
+        # 验证文件类型和大小
+        if not file.filename.lower().endswith(('.pdf', '.docx', '.pptx')):
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "INVALID_FILE_TYPE", "message": "Only PDF, DOCX, and PPTX files are supported"}
+            )
+
+        content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,
-                detail={
-                    "code": "FILE_TOO_LARGE",
-                    "message": f"File size exceeds limit of {MAX_FILE_SIZE/(1024*1024)}MB"
-                }
+                detail={"code": "FILE_TOO_LARGE", "message": "File size exceeds limit"}
             )
 
-        # 2. 获取 DeepL 配置
+        # 2. 提取文档文本
+        doc_processor = DocumentProcessor()
+        text_content = await doc_processor.process_file_async(content, file.filename)
+        logger.info(f"Extracted text content length: {len(text_content)}")
+
+        glossary_id = None
+        if use_glossary and text_content:
+            try:
+                term_extractor = GeminiTermExtractor()
+                glossary_manager = GlossaryManager(db)
+
+                # 3. 提取新术语
+                logger.info("Starting term extraction...")
+                new_terms = await term_extractor.extract_terms(text_content, source_lang, target_lang)
+                logger.info(f"Extracted {len(new_terms)} new terms")
+
+                if new_terms:
+                    try:
+                        # 4. 获取或创建主术语表
+                        existing_glossary = await glossary_manager.get_or_create_main_glossary(
+                            source_lang, 
+                            target_lang
+                        )
+                        
+                        # 5. 更新术语表
+                        result = await glossary_manager.update_main_glossary(
+                            source_lang,
+                            target_lang,
+                            new_terms
+                        )
+                        glossary_id = result["glossary_id"]
+                        logger.info(f"Updated glossary with ID: {glossary_id}")
+                    
+                    except Exception as e:
+                        logger.error(f"Error updating glossary: {str(e)}")
+                        logger.error(traceback.format_exc())
+                        # 如果更新失败，尝试使用现有术语表
+                        if existing_glossary:
+                            glossary_id = existing_glossary.get("glossary_id")
+                            logger.info(f"Falling back to existing glossary: {glossary_id}")
+                else:
+                    # 如果没有新术语，使用现有术语表
+                    main_glossary = await glossary_manager.get_or_create_main_glossary(
+                        source_lang,
+                        target_lang
+                    )
+                    glossary_id = main_glossary["glossary_id"]
+                    logger.info(f"Using existing glossary: {glossary_id}")
+
+            except Exception as e:
+                logger.error(f"Error in glossary management: {str(e)}")
+                logger.error(traceback.format_exc())
+                glossary_id = None
+
+        # 6. 执行翻译
         translator = DeepLTranslator()
-        if not translator.api_key:
-            logger.error("DeepL API key not configured")
+        try:
+            result = await translator.translate_document(
+                file_content=content,
+                filename=file.filename,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                glossary_id=glossary_id
+            )
+
+            return {
+                "document_id": result["document_id"],
+                "document_key": result["document_key"],
+                "glossary_id": glossary_id,
+                "has_glossary": bool(glossary_id)
+            }
+
+        except Exception as e:
+            logger.error(f"Translation error: {str(e)}")
             raise HTTPException(
                 status_code=500,
-                detail={
-                    "code": "API_KEY_MISSING",
-                    "message": "DeepL API key not configured"
-                }
+                detail={"code": "TRANSLATION_ERROR", "message": str(e)}
             )
-
-        # 3. 准备请求
-        base_url = translator.api_url.replace("/document", "")
-        headers = {
-            "Authorization": f"DeepL-Auth-Key {translator.api_key}"
-        }
-
-        # 4. 发送请求
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            try:
-                files = {
-                    "file": (file.filename, content, file.content_type)
-                }
-                data = {
-                    "target_lang": target_lang
-                }
-                
-                logger.info(f"Sending file to DeepL API: {file.filename}, size: {file_size} bytes, type: {file.content_type}")
-                upload_response = await client.post(
-                    f"{base_url}/document",
-                    files=files,
-                    data=data,
-                    headers=headers
-                )
-                
-                # 5. 记录响应信息
-                logger.info(f"DeepL API response status: {upload_response.status_code}")
-                logger.debug(f"DeepL API response headers: {dict(upload_response.headers)}")
-                logger.debug(f"DeepL API response body: {upload_response.text}")
-
-                # 6. 处理错误响应
-                if upload_response.status_code != 200:
-                    error_body = upload_response.json()
-                    logger.error(f"DeepL API error: {error_body}")
-                    raise HTTPException(
-                        status_code=upload_response.status_code,
-                        detail={
-                            "code": "DEEPL_API_ERROR",
-                            "message": error_body.get("message", "Translation service error")
-                        }
-                    )
-
-                # 7. 返回成功响应
-                result = upload_response.json()
-                return {
-                    "document_id": result["document_id"],
-                    "document_key": result["document_key"]
-                }
-
-            except httpx.ReadTimeout:  # 修正超时异常类名
-                logger.error("DeepL API request timed out")
-                raise HTTPException(
-                    status_code=504,
-                    detail={
-                        "code": "TIMEOUT",
-                        "message": "Translation service request timed out"
-                    }
-                )
-            except httpx.RequestError as e:
-                logger.error(f"DeepL API request failed: {str(e)}")
-                raise HTTPException(
-                    status_code=502,
-                    detail={
-                        "code": "REQUEST_FAILED",
-                        "message": "Failed to connect to translation service"
-                    }
-                )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error during translation: {str(e)}")
+        logger.error(f"Unexpected error: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
-            detail={
-                "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred"
-            }
+            detail={"code": "UNEXPECTED_ERROR", "message": "An unexpected error occurred"}
         )
 
-# 添加新的端点用于检查状态
+
+# 修改状态检查端点以包含术语表信息
 @app.post("/api/translate/{document_id}/status")
-async def check_status(
-    document_id: str,
-    document_key: str
-):
+async def check_translation_status(document_id: str, document_key: str = Form(...)):
     try:
-        # 使用 DeepLTranslator 实例获取正确的配置
         translator = DeepLTranslator()
-        base_url = translator.api_url.replace("/document", "")
-
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{base_url}/document/{document_id}",
-                params={
-                    "auth_key": translator.api_key,
-                    "document_key": document_key
-                }
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Status check failed: {response.text}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Status check failed: {response.text}"
-                )
-            
-            return response.json()
-
+        status = await translator.check_document_status(document_id, document_key)
+        return status
     except Exception as e:
-        logger.error(f"Error checking status: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Status check error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "STATUS_CHECK_ERROR", "message": str(e)}
+        )
 
 # 在文件开头添加自定义异常类
 class CharacterLimitError(Exception):
@@ -419,59 +468,25 @@ class CharacterLimitError(Exception):
     pass
 
 # 修改文档翻译下载端点
-@app.post("/api/translate/{document_id}/download")
-async def download_document(
-    document_id: str,
-    document_key: str
-):
+@app.post("/api/translate/{document_id}/result")
+async def download_document(document_id: str, document_key: str = Form(...)):
     try:
         translator = DeepLTranslator()
-        base_url = translator.api_url.replace("/document", "")
-
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{base_url}/document/{document_id}/result",
-                params={
-                    "auth_key": translator.api_key,
-                    "document_key": document_key
-                }
-            )
-            
-            if response.status_code != 200:
-                error_data = response.json()
-                error_message = error_data.get("message", "")
-                
-                # 检查是否是字符限制错误
-                if "Character limit reached" in error_message:
-                    logger.error("Translation character limit reached")
-                    raise CharacterLimitError("Monthly character limit reached. Please contact administrator.")
-                
-                logger.error(f"Download failed: {response.text}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Download failed: {response.text}"
-                )
-            
-            return Response(
-                content=response.content,
-                media_type="application/octet-stream",
-                headers={
-                    "Content-Disposition": f"attachment; filename=translated_document"
-                }
-            )
-
-    except CharacterLimitError as e:
-        # 返回特定的错误代码和消息
-        raise HTTPException(
-            status_code=429,  # Too Many Requests
-            detail={
-                "code": "CHARACTER_LIMIT_REACHED",
-                "message": str(e)
+        result = await translator.get_document_result(document_id, document_key)
+        
+        return Response(
+            content=result,
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f"attachment; filename=translated_document"
             }
         )
     except Exception as e:
-        logger.error(f"Error downloading document: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Download error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "DOWNLOAD_ERROR", "message": str(e)}
+        )
 
 # 同样修改文本翻译端点
 @app.post("/api/translate/text")
@@ -530,3 +545,282 @@ async def translate_text(
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/api/health/db")
+async def check_db_health(db: Session = Depends(get_db)):
+    try:
+        # 执行简单查询
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "message": "Database connection successful"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "unhealthy", "message": str(e)}
+        )
+
+
+@app.post("/api/create-glossary")
+async def create_glossary(
+    file: UploadFile = File(...),
+    primary_lang: str = Form(...),
+    name: str = Form("Auto Generated Glossary"),
+    db: Session = Depends(get_db)
+):
+    try:
+        # 1. 读取文件内容
+        content = await file.read()
+        
+        # 2. 使用 DocumentProcessor 提取文本
+        doc_processor = DocumentProcessor()
+        text_content = await doc_processor.process_file_async(content, file.filename)
+        
+        if not text_content:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "TEXT_EXTRACTION_ERROR", "message": "Failed to extract text from document"}
+            )
+        
+        # 3. 生成术语表 payload
+        term_extractor = GeminiTermExtractor()
+        glossary_manager = GlossaryManager(db)
+        glossary_payload = await term_extractor.create_glossary_payload(
+            text_content, 
+            primary_lang,
+            name
+        )
+        
+        # 4. 创建 DeepL 术语表
+        result = await glossary_manager.create_glossary(glossary_payload)
+        
+        return {
+            "status": "success",
+            "glossary_id": result["glossary_id"],
+            "dictionaries": result["dictionaries"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Glossary creation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "GLOSSARY_CREATION_ERROR", "message": str(e)}
+        )
+
+# 获取所有术语表 前端使用的api
+@app.get("/api/glossaries")
+async def list_glossaries(db: Session = Depends(get_db)):
+    try:
+        glossary_manager = GlossaryManager(db)
+        glossaries = await glossary_manager.list_glossaries()
+        return {"glossaries": glossaries}
+    except Exception as e:
+        logger.error(f"Error listing glossaries: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "GLOSSARY_LIST_ERROR", "message": str(e)}
+        )
+
+# 获取特定术语表
+@app.get("/api/glossaries/{glossary_id}")
+async def get_glossary(glossary_id: str, db: Session = Depends(get_db)):
+    try:
+        glossary_manager = GlossaryManager(db)
+        glossary = await glossary_manager.get_glossary(glossary_id)
+        return glossary
+    except Exception as e:
+        logger.error(f"Error getting glossary: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "GLOSSARY_GET_ERROR", "message": str(e)}
+        )
+
+# 获取术语表条目
+@app.get("/api/glossaries/{glossary_id}/entries")
+async def get_glossary_entries(glossary_id: str, db: Session = Depends(get_db)):
+    try:
+        glossary_manager = GlossaryManager(db)
+        entries = await glossary_manager.get_entries(glossary_id)
+        return Response(content=entries, media_type="text/plain")
+    except Exception as e:
+        logger.error(f"Error getting glossary entries: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "GLOSSARY_ENTRIES_ERROR", "message": str(e)}
+        )
+
+# 更新术语表
+@app.patch("/api/glossaries/{glossary_id}")
+async def update_glossary(glossary_id: str, payload: dict, db: Session = Depends(get_db)):
+    try:
+        glossary_manager = GlossaryManager(db)
+        result = await glossary_manager.update_glossary(glossary_id, payload)
+        return result
+    except Exception as e:
+        logger.error(f"Error updating glossary: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "GLOSSARY_UPDATE_ERROR", "message": str(e)}
+        )
+
+# 删除术语表
+@app.delete("/api/glossaries/{glossary_id}")
+async def delete_glossary(glossary_id: str, db: Session = Depends(get_db)):
+    try:
+        glossary_manager = GlossaryManager(db)
+        await glossary_manager.delete_glossary(glossary_id)
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error deleting glossary: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "GLOSSARY_DELETE_ERROR", "message": str(e)}
+        )
+
+# 搜索术语表和词汇明细本地数据库查询
+@app.get("/api/glossaries-search")
+async def search_glossaries(
+    name: Optional[str] = Query(None, description="术语表名称"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
+    source_lang: Optional[str] = Query(None, description="源语言"),
+    target_lang: Optional[str] = Query(None, description="目标语言"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量"),
+    db: Session = Depends(get_db)
+):
+    try:
+        # 处理日期参数
+        start_datetime = None
+        end_datetime = None
+        
+        if start_date:
+            try:
+                start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "INVALID_DATE_FORMAT",
+                        "message": "Start date should be in YYYY-MM-DD format"
+                    }
+                )
+                
+        if end_date:
+            try:
+                end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
+                end_datetime = end_datetime.replace(hour=23, minute=59, second=59)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "INVALID_DATE_FORMAT",
+                        "message": "End date should be in YYYY-MM-DD format"
+                    }
+                )
+
+        # 使用 LocalGlossaryManager 进行本地数据库查询
+        local_manager = LocalGlossaryManager(db)
+        
+        results = await local_manager.search_glossaries_and_entries(
+            name=name,
+            start_date=start_datetime,
+            end_date=end_datetime,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            page=page,
+            page_size=page_size
+        )
+        
+        return results
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error searching glossaries: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "SEARCH_ERROR",
+                "message": str(e)
+            }
+        )
+
+
+# 获取术语表详细信息 前端专用
+@app.get("/api/glossaries/{glossary_id}/details")
+async def get_glossary_details(glossary_id: str, db: Session = Depends(get_db)):
+    try:
+        glossary_manager = GlossaryManager(db)
+        
+        # 首先检查术语表是否存在
+        try:
+            await glossary_manager.get_glossary(glossary_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "GLOSSARY_NOT_FOUND",
+                    "message": f"Glossary with ID {glossary_id} not found"
+                }
+            )
+        
+        # 获取详细信息
+        details = await glossary_manager.get_glossary_details(glossary_id)
+        return details
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting glossary details: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "GLOSSARY_DETAILS_ERROR",
+                "message": "Failed to retrieve glossary details"
+            }
+        )
+
+# 更新术语表条目的目标术语本地数据库
+@app.put("/api/glossary-entries/{entry_id}")
+async def update_glossary_entry(
+    entry_id: int,
+    target_term: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    try:
+        local_manager = LocalGlossaryManager(db)
+        result = await local_manager.update_glossary_entry(entry_id, target_term)
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "ENTRY_NOT_FOUND", "message": str(e)}
+        )
+    except Exception as e:
+        logger.error(f"Error updating glossary entry: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "UPDATE_ERROR", "message": str(e)}
+        )
+
+@app.delete("/api/glossary-entries/{entry_id}")
+async def delete_glossary_entry(
+    entry_id: int,
+    db: Session = Depends(get_db)
+):
+    try:
+        local_manager = LocalGlossaryManager(db)
+        await local_manager.delete_glossary_entry(entry_id)
+        return {"status": "success"}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "ENTRY_NOT_FOUND", "message": str(e)}
+        )
+    except Exception as e:
+        logger.error(f"Error deleting glossary entry: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "DELETE_ERROR", "message": str(e)}
+        )
+

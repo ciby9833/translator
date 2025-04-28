@@ -1,6 +1,9 @@
 export default {
   translation: {
     title: 'Cargo翻译神器',
+    useGlossary: '使用术语表',
+    sourceLanguage: '源语言',  // 'Source Language' / 'Bahasa Sumber'
+    targetLanguage: '目标语言', 
     upload: {
       title: '上传文档',
       drag: '拖拽文件到此处，或点击选择文件',
@@ -9,11 +12,16 @@ export default {
       formats: '支持的格式：PDF、DOCX、PPTX',
       fileTooLarge: '文件太大，最大支持30MB',
       largeFileWarning: '（大文件可能需要较长上传时间）',
-      maxSize: '最大文件大小：30MB'
+      maxSize: '最大文件大小：30MB',
+      invalidType: '不支持的文件类型，仅支持PDF、DOCX和PPTX文件',
+      warning: '警告',
+      processing: '正在处理文件...'
     },
     language: {
-      title: '目标语言',
-      select: '选择目标语言'
+      AUTO: '自动检测',
+      ZH: '中文',
+      EN: '英文',
+      ID: '印尼文',
     },
     status: {
       uploading: '正在上传文档...',
@@ -21,7 +29,10 @@ export default {
       downloading: '准备下载...',
       completed: '翻译完成！',
       autoDownloaded: '文件已自动下载。',
-      error: '错误：{{message}}'
+      error: '错误：{{message}}',
+      processing: '正在处理文档...',
+      extracting: '正在提取术语...',
+      creatingGlossary: '正在创建术语表...'
     },
     button: {
       translate: '翻译文档',
@@ -50,12 +61,70 @@ export default {
         emptyFile: '收到的文件为空',
         uploadTimeout: '上传超时，请尝试上传小一点的文件或检查网络连接',
         fileTooLarge: '文件太大，最大支持30MB',
-        unexpected: '发生未知错误'
+        unexpected: '发生未知错误',
+        unsupportedFileType: '不支持的文件类型，仅支持PDF、DOCX和PPTX文件',
+        sourceLanguageRequired: '使用术语表时必须指定源语言',
+        uploadFailed: '上传失败',
+        statusCheckFailed: '状态检查失败',
+        downloadFailed: '下载失败',
+        translationFailed: '翻译失败'
       },
     or: "或",
     mode: {
       text: "文本翻译",
       document: "文档翻译"
+    },
+    tabs: {
+      translation: "翻译",
+      glossaryManagement: "术语表管理"
+    },
+    glossary: {
+      information: "术语表信息",
+      sourceLang: "源语言",
+      targetLang: "目标语言",
+      nameRequired: "请输入术语表名称",
+      sourceLangRequired: "请选择源语言",
+      targetLangRequired: "请选择目标语言",
+      entriesRequired: "请输入术语条目",
+      namePlaceholder: "输入术语表名称",
+      entriesPlaceholder: "按格式输入术语：源术语[Tab键]目标术语",
+      totalEntries: "总条目数",
+      languages: "语言",
+      actions: "操作",
+      entriesNotAvailable: "条目不可用",
+      entriesNotAvailableDesc: "无法获取此术语表的条目。术语表基本信息仍然可用。",
+      showTotal: '共 {{total}} 条',  // 'Total {{total}} entries' / 'Total {{total}} entri'
+      itemsPerPage: '条/页',        // 'items/page' / 'item/halaman'
+      jumpTo: '跳转至',            // 'Jump to' / 'Lompat ke'
+      jumpToConfirm: '确定',       // 'Confirm' / 'Konfirmasi'
+      page: '页',                 // 'page' / 'halaman'
+      entriesModalTitle: '术语表条目',  // 'Glossary Entries' / 'Entri Glosarium'
+     fetchError: '获取术语表失败',     // 'Failed to fetch glossaries' / 'Gagal mengambil glosarium'
+      deleteError: '删除术语表失败',     // 'Failed to delete glossary' / 'Gagal menghapus glosarium'
+      search: {
+        name: "术语表名称",
+        namePlaceholder: "请输入术语表名称",
+        dateRange: "创建时间范围",
+        sourceLang: "源语言",
+        targetLang: "目标语言",
+        selectLanguage: "请选择语言",
+        submit: "查询"
+      },
+      view: "查看",
+      delete: "删除",
+      deleteSuccess: "删除成功",
+      name: "名称",
+      createdAt: "创建时间",
+      entries: "词条数量",
+      databaseSearch: "术语库查询",
+      noData: "暂无数据",
+      sourceTermLabel: "源词条",
+      targetTermLabel: "目标词条"
+    },
+    download: {
+      filename: '已翻译_{{filename}}',
+      preparing: '准备下载...',
+      completed: '下载完成'
     }
   }
 }
