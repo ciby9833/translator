@@ -3,6 +3,7 @@ export type TranslationStatus = 'idle' | 'uploading' | 'translating' | 'download
 export interface Language {
   code: string;
   name: string;
+  sourceOnly?: boolean;
 }
 
 export interface TranslationError {

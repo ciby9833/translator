@@ -5,6 +5,13 @@ export interface TranslationResponse {
   error?: string;
 }
 
+// 修改API调用方式
+const createApiUrl = (path: string) => {
+  // 如果是生产环境，直接使用相对路径
+  // 如果是开发环境，使用完整的API_BASE_URL
+  return import.meta.env.PROD ? path : `${API_BASE_URL}${path}`;
+};
+
 // 文档翻译相关
 export const translateDocument = async (file: File, sourceLang: string, targetLang: string, useGlossary: boolean) => {
   const formData = new FormData();
@@ -13,7 +20,7 @@ export const translateDocument = async (file: File, sourceLang: string, targetLa
   formData.append('target_lang', targetLang);
   formData.append('use_glossary', useGlossary.toString());
 
-  const response = await fetch(`${API_BASE_URL}/api/translate`, {
+  const response = await fetch(createApiUrl('/api/translate'), {
     method: 'POST',
     body: formData,
   });
@@ -26,7 +33,7 @@ export const translateText = async (text: string, targetLang: string) => {
   formData.append('text', text);
   formData.append('target_lang', targetLang);
 
-  const response = await fetch(`${API_BASE_URL}/api/translate/text`, {
+  const response = await fetch(createApiUrl('/api/translate/text'), {
     method: 'POST',
     body: formData,
   });
@@ -53,14 +60,24 @@ interface GlossarySearchResponse {
   }>;
 }
 
+interface SearchGlossariesParams {
+  page?: number;
+  pageSize?: number;
+  name?: string;
+  startDate?: string;
+  endDate?: string;
+  sourceLang?: string;
+  targetLang?: string;
+}
+
 export const glossaryApi = {
   // 获取术语表列表
   getGlossaries: () => 
-    fetch(`${API_BASE_URL}/api/glossaries`),
+    fetch(createApiUrl('/api/glossaries')),
 
   // 创建术语表
   createGlossary: (data: any) => 
-    fetch(`${API_BASE_URL}/api/glossaries`, {
+    fetch(createApiUrl('/api/glossaries'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -68,13 +85,13 @@ export const glossaryApi = {
 
   // 删除术语表
   deleteGlossary: (glossaryId: string) => 
-    fetch(`${API_BASE_URL}/api/glossaries/${glossaryId}`, {
+    fetch(createApiUrl(`/api/glossaries/${glossaryId}`), {
       method: 'DELETE',
     }),
 
   // 获取术语表详情
   getGlossaryDetails: (glossaryId: string, page: number, pageSize: number) => 
-    fetch(`${API_BASE_URL}/api/glossaries/${glossaryId}/details?page=${page}&page_size=${pageSize}`),
+    fetch(createApiUrl(`/api/glossaries/${glossaryId}/details?page=${page}&page_size=${pageSize}`)),
 
   // 搜索术语表和词条查询本地数据库
   searchGlossaries: async (params: SearchGlossariesParams): Promise<GlossarySearchResponse> => {
@@ -91,7 +108,7 @@ export const glossaryApi = {
     if (params.sourceLang) queryParams.append('source_lang', params.sourceLang);
     if (params.targetLang) queryParams.append('target_lang', params.targetLang);
 
-    const response = await fetch(`${API_BASE_URL}/api/glossaries-search?${queryParams}`);
+    const response = await fetch(createApiUrl(`/api/glossaries-search?${queryParams}`));
     if (!response.ok) {
       throw new Error('Search failed');
     }
@@ -100,7 +117,7 @@ export const glossaryApi = {
 
   // 更新术语表条目本地数据库
   updateGlossaryEntry: async (entryId: number, targetTerm: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/glossary-entries/${entryId}`, {
+    const response = await fetch(createApiUrl(`/api/glossary-entries/${entryId}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target_term: targetTerm }),
@@ -113,7 +130,7 @@ export const glossaryApi = {
 
   // 删除术语表条目
   deleteGlossaryEntry: async (entryId: number) => {
-    const response = await fetch(`${API_BASE_URL}/api/glossary-entries/${entryId}`, {
+    const response = await fetch(createApiUrl(`/api/glossary-entries/${entryId}`), {
       method: 'DELETE',
     });
     if (!response.ok) {

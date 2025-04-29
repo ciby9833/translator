@@ -38,11 +38,13 @@
   font-size: 16px;
   resize: none; /* 禁用手动调整大小 */
   line-height: 1.5;
+  transition: border-color 0.3s;
 }
 
 .text-area:focus {
   outline: none;
   border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.1);
 }
 
 .text-area.translated {
@@ -147,31 +149,11 @@
 }
 
 .translate-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: none;
 }
 
 .translate-button {
-  min-width: 100px;
-  height: 36px;
-  padding: 0 20px;
-  background-color: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s;
-}
-
-.translate-button:hover:not(:disabled) {
-  background-color: var(--hover-color);
-}
-
-.translate-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  display: none;
 }
 
 /* 添加语言选择的紧凑模式样式 */
@@ -296,5 +278,62 @@
     width: 100%;
     min-height: 200px;
   }
+}
+
+/* 添加翻译中的样式 */
+.translating-message {
+  color: var(--primary-color);
+  font-size: 14px;
+  text-align: center;
+  padding: 8px;
+}
+
+/* 添加翻译中的视觉反馈 */
+.text-area-container.translating::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    var(--primary-color) 0%, 
+    var(--primary-color) 50%, 
+    transparent 50%, 
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite linear;
+}
+
+@keyframes loading {
+  from { background-position: 200% 0; }
+  to { background-position: 0 0; }
+}
+
+/* 添加复制按钮交互效果 */
+.icon-button.copy-success {
+  color: #4CAF50;
+  background-color: #E8F5E9;
+}
+
+.icon-button.copy-success .material-icons {
+  animation: copyFeedback 1s ease-in-out;
+}
+
+@keyframes copyFeedback {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* 添加快捷键提示样式 */
+.shortcut-hint {
+  position: absolute;
+  right: 40px;
+  bottom: 8px;
+  font-size: 12px;
+  color: #666;
+  opacity: 0.7;
 }
 

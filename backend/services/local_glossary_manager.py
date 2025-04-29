@@ -52,11 +52,18 @@ class LocalGlossaryManager:
 
             # 3. 计算总条目数
             total_entries = entries_query.count()
+            
+            # 4. 计算总页数
+            total_pages = (total_entries + page_size - 1) // page_size
+            
+            # 5. 验证并修正页码
+            valid_page = min(max(1, page), total_pages) if total_pages > 0 else 1
+            
+            # 6. 获取分页数据
+            offset = (valid_page - 1) * page_size
+            entries = entries_query.offset(offset).limit(page_size).all()
 
-            # 4. 获取分页数据
-            entries = entries_query.offset((page - 1) * page_size).limit(page_size).all()
-
-            # 5. 格式化返回数据
+            # 7. 格式化返回数据
             result_entries = [
                 {
                     "id": entry.GlossaryEntry.id,
@@ -75,9 +82,9 @@ class LocalGlossaryManager:
 
             return {
                 "total": total_entries,
-                "page": page,
+                "page": valid_page,
                 "page_size": page_size,
-                "total_pages": (total_entries + page_size - 1) // page_size,
+                "total_pages": total_pages,
                 "entries": result_entries
             }
 

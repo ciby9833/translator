@@ -73,7 +73,7 @@ const GlossaryList: React.FC = () => {
       render: (_: any, record: Glossary) => (
         <Space>
           <Button onClick={() => viewEntries(record.glossary_id)}>{t('glossary.viewEntries')}</Button>
-          <Button danger onClick={() => deleteGlossary(record.glossary_id)}>{t('glossary.delete')}</Button>
+          {/* <Button danger onClick={() => deleteGlossary(record.glossary_id)}>{t('glossary.delete')}</Button> */}
         </Space>
       ),
     },

@@ -1,8 +1,9 @@
 // frontend/src/components/TextTranslate.tsx   文本翻译
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import './TextTranslate.css';
 import { translateText } from '../services/api';
+import { debounce } from 'lodash';
 
 interface TextTranslateProps {
   disabled?: boolean;
@@ -21,66 +22,155 @@ const LANGUAGES: Language[] = [
   { code: 'EN', name: '英语' },
 ];
 
+// 修改常量配置
+const DEBOUNCE_DELAY = 3000; // 修改为3秒延迟
+const MAX_CHARACTERS = 3000;
+
+// 添加工具函数处理空白字符
+const removeExtraWhitespace = (text: string) => {
+  return text.trim().replace(/\s+/g, ' ');
+};
+
+// 修改工具函数，添加检查最后一个字符是否为空格
+const isLastCharSpace = (text: string) => {
+  return text.charAt(text.length - 1) === ' ';
+};
+
 const TextTranslate = ({ disabled }: TextTranslateProps) => {
   const { t } = useTranslation();
   const [sourceText, setSourceText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
   const [error, setError] = useState('');
-  const [sourceLang, setSourceLang] = useState<string>('AUTO');
-  const [targetLang, setTargetLang] = useState<string>('ZH');
+  const [sourceLang, setSourceLang] = useState<string>(
+    localStorage.getItem('textSourceLang') || 'AUTO'
+  );
+  const [targetLang, setTargetLang] = useState<string>(
+    localStorage.getItem('textTargetLang') || 'ID'
+  );
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
+  const [lastTranslatedText, setLastTranslatedText] = useState('');
+  const [lastValidText, setLastValidText] = useState('');
+  const [pendingText, setPendingText] = useState('');
 
-  const handleTextChange = (text: string) => {
-    setSourceText(text);
-    setHistory([...history.slice(0, historyIndex + 1), text]);
-    setHistoryIndex(historyIndex + 1);
-  };
+  // 修改自动翻译函数，将 debounce 移到组件外部
+  const debouncedTranslate = useCallback(
+    debounce(async (text: string, targetLang: string) => {
+      const processedText = removeExtraWhitespace(text);
+      if (!processedText || disabled) return;
+      
+      try {
+        setIsTranslating(true);
+        setError('');
+        
+        const response = await translateText(processedText, targetLang);
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
 
-  const handleClear = () => {
-    setSourceText('');
-    setHistory([]);
-    setHistoryIndex(-1);
-  };
+        const result = await response.json();
+        setTranslatedText(result.translations[0].text);
+        setLastValidText(processedText);
+      } catch (error) {
+        setError(t('error.translationFailed'));
+      } finally {
+        setIsTranslating(false);
+      }
+    }, DEBOUNCE_DELAY),
+    [disabled, t]
+  );
 
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1);
-      setSourceText(history[historyIndex - 1]);
-    }
-  };
-
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1);
-      setSourceText(history[historyIndex + 1]);
-    }
-  };
-
-  const handleTranslate = async () => {
-    if (!sourceText.trim()) return;
-    setIsTranslating(true);
-    setError('');
-
+  // 添加立即翻译函数（不带防抖）
+  const translateImmediate = useCallback(async (text: string, targetLang: string) => {
+    const processedText = removeExtraWhitespace(text);
+    if (!processedText || disabled) return;
+    
     try {
-      const response = await translateText(sourceText, targetLang);
+      setIsTranslating(true);
+      setError('');
+      
+      const response = await translateText(processedText, targetLang);
       if (!response.ok) {
         throw new Error(await response.text());
       }
 
       const result = await response.json();
       setTranslatedText(result.translations[0].text);
+      setLastValidText(processedText);
     } catch (error) {
       setError(t('error.translationFailed'));
     } finally {
       setIsTranslating(false);
     }
+  }, [disabled, t]);
+
+  // 修改文本变化处理函数
+  const handleTextChange = (text: string) => {
+    setSourceText(text);
+    
+    // 更新历史记录
+    const newHistory = [...history.slice(0, historyIndex + 1), text];
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    
+    // 如果内容为空，直接清空翻译结果
+    if (!text.trim()) {
+      setTranslatedText('');
+      setLastValidText('');
+      return;
+    }
+
+    // 如果是空格结尾，不触发翻译
+    if (isLastCharSpace(text)) return;
+
+    // 调用防抖函数，会在 3 秒内的最后一次调用后执行
+    debouncedTranslate(text, targetLang);
   };
 
-  // 改进的语言交换函数
-  const handleSwapLanguages = async () => {
-    // 如果没有翻译结果，不执行交换
+  // 修改清除函数
+  const handleClear = () => {
+    setSourceText('');
+    setTranslatedText('');
+    setLastTranslatedText('');
+    setLastValidText('');
+    setPendingText('');
+    setHistory([]);
+    setHistoryIndex(-1);
+    setError('');
+  };
+
+  // 修改撤销/重做函数
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      const newText = history[newIndex];
+      setHistoryIndex(newIndex);
+      setSourceText(newText);
+      
+      if (newText.trim() && !isLastCharSpace(newText)) {
+        debouncedTranslate(newText, targetLang);
+      }
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      const newText = history[newIndex];
+      setHistoryIndex(newIndex);
+      setSourceText(newText);
+      
+      if (newText.trim() && !isLastCharSpace(newText)) {
+        debouncedTranslate(newText, targetLang);
+      }
+    }
+  };
+
+  // 修改语言切换函数
+  const handleSwapLanguages = () => {
     if (!translatedText) return;
 
     const newSourceLang = targetLang;
@@ -88,47 +178,101 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
       ? LANGUAGES.find(lang => !lang.autoDetect)?.code || 'ZH' 
       : sourceLang;
     
-    // 保存当前的翻译文本
-    const newSourceText = translatedText;
-    const newTranslatedText = sourceText;
-    
-    // 更新状态
     setSourceLang(newSourceLang);
     setTargetLang(newTargetLang);
-    setSourceText(newSourceText);
-    setTranslatedText(''); // 清空翻译结果
+    setSourceText(translatedText);
+    setTranslatedText('');
     
     // 更新历史记录
-    setHistory([...history.slice(0, historyIndex + 1), newSourceText]);
+    setHistory([...history.slice(0, historyIndex + 1), translatedText]);
     setHistoryIndex(historyIndex + 1);
+  };
+
+  // 添加复制函数
+  const handleCopy = async () => {
+    if (!translatedText) return;
     
-    // 使用 setTimeout 确保状态更新后再进行翻译
-    setTimeout(async () => {
-      try {
-        const formData = new FormData();
-        formData.append('text', newSourceText);
-        formData.append('target_lang', newTargetLang);
+    try {
+      await navigator.clipboard.writeText(translatedText);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 1000);
+    } catch (error) {
+      setError(t('error.copyFailed'));
+    }
+  };
 
-        setIsTranslating(true);
-        const response = await fetch('http://localhost:8000/api/translate/text', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-
-        const result = await response.json();
-        setTranslatedText(result.translations[0].text);
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Translation failed');
-        // 如果翻译失败，恢复原来的文本
-        setTranslatedText(newTranslatedText);
-      } finally {
-        setIsTranslating(false);
+  // 添加键盘快捷键处理
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Ctrl+Enter 触发翻译
+    if (e.ctrlKey && e.key === 'Enter') {
+      if (sourceText.trim()) {
+        debouncedTranslate(sourceText, targetLang);
       }
-    }, 0);
+    }
+    
+    // Ctrl+C 复制翻译结果（当焦点在翻译结果框时）
+    if (e.ctrlKey && e.key === 'c' && document.activeElement?.classList.contains('translated')) {
+      e.preventDefault();
+      handleCopy();
+    }
+  }, [sourceText, debouncedTranslate, handleCopy]);
+
+  // 添加键盘事件监听
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  // 修改语言切换时的翻译处理
+  useEffect(() => {
+    if (sourceText.trim() && !isLastCharSpace(sourceText)) {
+      // 语言切换时立即翻译
+      translateImmediate(sourceText, targetLang);
+    }
+  }, [targetLang, translateImmediate]);
+
+  // 修改输入法完成事件处理
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    setIsComposing(false);
+    const text = e.currentTarget.value;
+    if (text.trim() && !isLastCharSpace(text)) {
+      debouncedTranslate(text, targetLang);
+    }
+  };
+
+  // 添加语言选择持久化
+  useEffect(() => {
+    localStorage.setItem('textSourceLang', sourceLang);
+  }, [sourceLang]);
+
+  useEffect(() => {
+    localStorage.setItem('textTargetLang', targetLang);
+  }, [targetLang]);
+
+  // 修改语言选择处理函数
+  const handleSourceLangChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newLang = e.target.value;
+    setSourceLang(newLang);
+    localStorage.setItem('textSourceLang', newLang);
+    
+    // 如果有文本，立即触发翻译
+    if (sourceText.trim() && !isLastCharSpace(sourceText)) {
+      translateImmediate(sourceText, targetLang);
+    }
+  };
+
+  // 修改目标语言选择处理函数
+  const handleTargetLangChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newLang = e.target.value;
+    setTargetLang(newLang);
+    localStorage.setItem('textTargetLang', newLang);
+    
+    // 如果有文本，立即触发翻译
+    if (sourceText.trim() && !isLastCharSpace(sourceText)) {
+      translateImmediate(sourceText, newLang);
+    }
   };
 
   return (
@@ -138,7 +282,7 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
           <div className="language-select-group">
             <select
               value={sourceLang}
-              onChange={(e) => setSourceLang(e.target.value)}
+              onChange={handleSourceLangChange}
               disabled={disabled || isTranslating}
             >
               {LANGUAGES.map((lang) => (
@@ -153,7 +297,9 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
             placeholder={t('textTranslate.sourcePlaceholder')}
             value={sourceText}
             onChange={(e) => handleTextChange(e.target.value)}
-            disabled={disabled || isTranslating}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={handleCompositionEnd}
+            disabled={disabled}
           />
           <div className="text-area-controls">
             <button
@@ -184,6 +330,9 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
           <div className="character-count">
             {sourceText.length} / 3000
           </div>
+          <div className="shortcut-hint">
+            Ctrl + Enter {t('textTranslate.shortcutTranslate')}
+          </div>
         </div>
 
         <div className="text-area-container">
@@ -198,12 +347,12 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
             </button>
             <select
               value={targetLang}
-              onChange={(e) => setTargetLang(e.target.value)}
+              onChange={handleTargetLangChange}
               disabled={disabled || isTranslating}
             >
               {LANGUAGES.filter(lang => !lang.autoDetect).map((lang) => (
                 <option key={lang.code} value={lang.code}>
-                  {lang.code === 'ZH' ? `${lang.name}` : lang.name}
+                  {lang.name}
                 </option>
               ))}
             </select>
@@ -216,44 +365,25 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
           />
           <div className="translated-controls">
             <button
-              className="icon-button"
-              onClick={() => navigator.clipboard.writeText(translatedText)}
+              className={`icon-button ${copySuccess ? 'copy-success' : ''}`}
+              onClick={handleCopy}
               disabled={!translatedText}
-              title={t('button.copy')}
+              title={`${t('button.copy')} (Ctrl+C)`}
             >
-              <span className="material-icons">content_copy</span>
+              <span className="material-icons">
+                {copySuccess ? 'check' : 'content_copy'}
+              </span>
             </button>
-            <button
-              className="icon-button"
-              onClick={() => {/* 添加到收藏 */}}
-              disabled={!translatedText}
-              title={t('button.favorite')}
-            >
-              <span className="material-icons">bookmark_border</span>
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => {/* 分享功能 */}}
-              disabled={!translatedText}
-              title={t('button.share')}
-            >
-              <span className="material-icons">share</span>
-            </button>
+          </div>
+          <div className="shortcut-hint">
+            Ctrl + C {t('textTranslate.shortcutCopy')}
           </div>
         </div>
       </div>
       
       <div className="controls">
-        <div className="translate-controls">
-          <button
-            className="translate-button"
-            onClick={handleTranslate}
-            disabled={disabled || isTranslating || !sourceText.trim()}
-          >
-            {isTranslating ? t('textTranslate.translating') : t('textTranslate.translate')}
-          </button>
-        </div>
         {error && <div className="error-message">{error}</div>}
+        {isTranslating && <div className="translating-message">{t('textTranslate.translating')}</div>}
       </div>
     </div>
   );

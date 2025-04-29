@@ -102,6 +102,8 @@ export default {
       namePlaceholder: "Enter glossary name",
       entriesPlaceholder: "Enter terms in format: source_term[Tab]target_term",
       totalEntries: "Total Entries",
+      updatedAt: "Updated At",
+      termCreatedAt: "Term Created At",
       languages: "Languages",
       actions: "Actions",
       entriesNotAvailable: "Entries Not Available",
@@ -121,6 +123,9 @@ export default {
         sourceLang: "Source Language",
         targetLang: "Target Language",
         selectLanguage: "Select Language",
+        sourceLangTip: 'Select source language, can reset',
+        targetLangTip: 'Select target language, can reset',
+        reset: 'Reset',
         submit: "Search"
       },
     },

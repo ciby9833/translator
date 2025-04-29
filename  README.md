@@ -139,3 +139,63 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 3. Never commit the `.env` file to version control
 
+
+
+如果您想要自动化这个过程，可以创建一个部署脚本：
+
+```bash
+#!/bin/bash
+# deploy-backend.sh
+
+# 配置变量
+SERVER="root@8.215.32.251"
+SERVER_PATH="/var/www/CargoTranslator"
+SSH_KEY="~/.ssh/cargoppt/cargoppt_server.pem"
+
+# 创建 rsync 排除文件
+cat > rsync-exclude.txt << EOF
+__pycache__/
+*.pyc
+.env
+*.log
+cache/
+venv/
+.git/
+.gitignore
+EOF
+
+# 使用 rsync 同步代码
+echo "同步代码到服务器..."
+rsync -avz --exclude-from=rsync-exclude.txt \
+    -e "ssh -i $SSH_KEY" \
+    ./backend/ $SERVER:$SERVER_PATH/backend/
+
+# 在服务器上执行部署命令
+echo "在服务器上执行部署命令..."
+ssh -i $SSH_KEY $SERVER << 'ENDSSH'
+cd /var/www/CargoTranslator/backend
+source venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart cargoppt
+echo "检查服务状态..."
+sudo systemctl status cargoppt
+ENDSSH
+
+# 清理本地文件
+rm rsync-exclude.txt
+
+echo "部署完成！"
+```
+
+使用这个脚本：
+```bash
+# 添加执行权限
+chmod +x deploy-backend.sh
+
+# 执行部署
+./deploy-backend.sh
+```
+
+
+
+

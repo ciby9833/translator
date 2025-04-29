@@ -293,7 +293,7 @@ app = FastAPI(title="CargoPPT Translation API")
 # 添加 CORS 中间件配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite 默认端口
+    allow_origins=["http://localhost:5173", "http://8.215.32.251"],  # 添加服务器域名
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

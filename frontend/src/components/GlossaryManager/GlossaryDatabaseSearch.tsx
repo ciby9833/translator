@@ -1,9 +1,8 @@
 // 搜索术语表和词汇明细本地数据库查询
 import React, { useState } from 'react';
-import { Form, Input, DatePicker, Select, Button, Table, Card, Tag, Tooltip, message, Popconfirm } from 'antd';
+import { Form, Input, DatePicker, Select, Button, Table, Card, Tag, Tooltip, message, Popconfirm, Space } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { glossaryApi } from '../../services/api';
-import type { Moment } from 'moment';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -211,31 +210,52 @@ const GlossaryDatabaseSearch: React.FC = () => {
   // 组合最终的列配置
   const columns = [...baseColumns, targetTermColumn, actionColumn];
 
+  // 添加语言选项配置
+  const languageOptions = [
+    { value: 'ZH', label: '中文' },
+    { value: 'EN', label: 'English' },
+    { value: 'ID', label: 'Bahasa Indonesia' }
+  ];
+
   const handleSearch = async (values: any) => {
     try {
       setLoading(true);
       const [startDate, endDate] = values.dateRange || [];
       
+      // 添加页码验证逻辑
+      let currentPage = pagination.current;
       const result = await glossaryApi.searchGlossaries({
         name: values.name,
         startDate: startDate?.format('YYYY-MM-DD'),
         endDate: endDate?.format('YYYY-MM-DD'),
         sourceLang: values.sourceLang,
         targetLang: values.targetLang,
-        page: pagination.current,
+        page: currentPage,
         pageSize: pagination.pageSize
       });
 
-      // 直接使用后端返回的数据
-      setData(result.entries);
-
-      // 更新分页信息
-      setPagination({
-        ...pagination,
-        current: result.page,
-        pageSize: result.page_size,
-        total: result.total
-      });
+      // 如果返回的数据为空且不是第一页，则自动请求最后一页
+      if (result.entries.length === 0 && currentPage > 1) {
+        currentPage = result.total_pages || 1;
+        const newResult = await glossaryApi.searchGlossaries({
+          ...values,
+          page: currentPage,
+          pageSize: pagination.pageSize
+        });
+        setData(newResult.entries);
+        setPagination({
+          ...pagination,
+          current: currentPage,
+          total: newResult.total
+        });
+      } else {
+        setData(result.entries);
+        setPagination({
+          ...pagination,
+          current: result.page,
+          total: result.total
+        });
+      }
     } catch (error) {
       console.error('Search error:', error);
       message.error(t('glossary.search.error') || '查询失败，请重试');
@@ -291,6 +311,30 @@ const GlossaryDatabaseSearch: React.FC = () => {
     }
   };
 
+  // 添加重置搜索条件函数
+  const handleReset = () => {
+    form.resetFields();
+    // 重置后立即执行一次搜索，获取所有数据
+    handleSearch(form.getFieldsValue());
+  };
+
+  // 添加语言选择变化处理函数
+  const handleSourceLangChange = (value: string | null) => {
+    const targetLang = form.getFieldValue('targetLang');
+    // 如果源语言和目标语言相同，清空目标语言
+    if (value && value === targetLang) {
+      form.setFieldValue('targetLang', null);
+    }
+  };
+
+  const handleTargetLangChange = (value: string | null) => {
+    const sourceLang = form.getFieldValue('sourceLang');
+    // 如果目标语言和源语言相同，清空源语言
+    if (value && value === sourceLang) {
+      form.setFieldValue('sourceLang', null);
+    }
+  };
+
   return (
     <div className="glossary-database-search">
       <Card className="search-form-card">
@@ -301,34 +345,63 @@ const GlossaryDatabaseSearch: React.FC = () => {
         >
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <Form.Item name="name" label={t('glossary.search.name')}>
-              <Input placeholder={t('glossary.search.namePlaceholder')} />
+              <Input 
+                placeholder={t('glossary.search.namePlaceholder')}
+                allowClear // 添加清除功能
+              />
             </Form.Item>
 
             <Form.Item name="dateRange" label={t('glossary.search.dateRange')}>
-              <RangePicker style={{ width: '100%' }} />
+              <RangePicker 
+                style={{ width: '100%' }}
+                allowClear // 添加清除功能
+              />
             </Form.Item>
 
-            <Form.Item name="sourceLang" label={t('glossary.search.sourceLang')}>
-              <Select placeholder={t('glossary.search.selectLanguage')}>
-                <Option value="ZH">中文</Option>
-                <Option value="EN">English</Option>
-                <Option value="ID">Bahasa Indonesia</Option>
-              </Select>
+            <Form.Item 
+              name="sourceLang" 
+              label={t('glossary.search.sourceLang')}
+              tooltip={t('glossary.search.sourceLangTip')} // 添加提示信息
+            >
+              <Select
+                placeholder={t('glossary.search.selectLanguage')}
+                allowClear // 添加清除功能
+                onChange={handleSourceLangChange}
+                options={languageOptions}
+                showSearch // 添加搜索功能
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              />
             </Form.Item>
 
-            <Form.Item name="targetLang" label={t('glossary.search.targetLang')}>
-              <Select placeholder={t('glossary.search.selectLanguage')}>
-                <Option value="ZH">中文</Option>
-                <Option value="EN">English</Option>
-                <Option value="ID">Bahasa Indonesia</Option>
-              </Select>
+            <Form.Item 
+              name="targetLang" 
+              label={t('glossary.search.targetLang')}
+              tooltip={t('glossary.search.targetLangTip')} // 添加提示信息
+            >
+              <Select
+                placeholder={t('glossary.search.selectLanguage')}
+                allowClear // 添加清除功能
+                onChange={handleTargetLangChange}
+                options={languageOptions}
+                showSearch // 添加搜索功能
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              />
             </Form.Item>
           </div>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
-              {t('glossary.search.submit')}
-            </Button>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={loading}>
+                {t('glossary.search.submit')}
+              </Button>
+              <Button onClick={handleReset}>
+                {t('glossary.search.reset')}
+              </Button>
+            </Space>
           </Form.Item>
         </Form>
       </Card>
@@ -342,6 +415,12 @@ const GlossaryDatabaseSearch: React.FC = () => {
             pageSizeOptions: ['10', '20', '50', '100'],
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`,
+            // 添加页码范围验证
+            onChange: (page, pageSize) => {
+              const maxPage = Math.ceil(pagination.total / pageSize);
+              const validPage = Math.min(page, maxPage);
+              handleTableChange({ ...pagination, current: validPage, pageSize }, null, null);
+            }
           }}
           onChange={handleTableChange}
           loading={loading}

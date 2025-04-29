@@ -90,6 +90,8 @@ export default {
       namePlaceholder: "Masukkan nama glosarium",
       entriesPlaceholder: "Masukkan istilah dalam format: istilah_sumber[Tab]istilah_target",
       totalEntries: "Total Entri",
+      updatedAt: "Waktu Pembaruan",
+      termCreatedAt: "Waktu Penciptaan Istilah",
       languages: "Bahasa",
       actions: "Tindakan",
       entriesNotAvailable: "Entri Tidak Tersedia",
@@ -109,6 +111,9 @@ export default {
         sourceLang: "Bahasa Sumber",
         targetLang: "Bahasa Target",
         selectLanguage: "Pilih Bahasa",
+        sourceLangTip: 'Pilih bahasa sumber, dapat membersihkan ulang',
+        targetLangTip: 'Pilih bahasa target, dapat membersihkan ulang',
+        reset: 'Membersihkan ulang',
         submit: "Cari"
       },
       view: "Lihat",

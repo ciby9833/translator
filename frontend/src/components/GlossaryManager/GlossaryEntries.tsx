@@ -1,7 +1,7 @@
 // src/components/GlossaryManager/GlossaryEntries.tsx   前端术语表条目组件
 import React, { useEffect, useState } from 'react';
 import { Table, message, Descriptions, Space, Alert } from 'antd';
-import type { GlossaryEntry } from './types';
+import { GlossaryEntry } from './types';  // 修改导入路径 
 import { useTranslation } from 'react-i18next';
 import { glossaryApi } from '../../services/api';
 

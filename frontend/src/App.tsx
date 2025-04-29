@@ -4,16 +4,15 @@ import { useTranslation } from 'react-i18next'
 import FileUpload from './components/FileUpload'
 import LanguageSelect from './components/LanguageSelect'
 import TranslationStatus from './components/TranslationStatus'
-import LanguageSwitch from './components/LanguageSwitch'
 import TextTranslate from './components/TextTranslate'
 import TranslationModeSwitch from './components/TranslationModeSwitch'
 import Footer from './components/Footer'
 import { Tabs } from 'antd'
 import { GlossaryList, GlossaryEditor } from './components/GlossaryManager'
-import { message } from 'antd'
 import './style.css'
 import { translateDocument } from './services/api'
 import GlossaryDatabaseSearch from './components/GlossaryManager/GlossaryDatabaseSearch'
+import { API_BASE_URL } from './config/env'
 
 export type TranslationStatus = 
     'idle' | 
@@ -33,10 +32,31 @@ function App() {
   const [status, setStatus] = useState<TranslationStatus>('idle')
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [targetLanguage, setTargetLanguage] = useState<string>('EN')
-  const [sourceLang, setSourceLang] = useState<string>('AUTO')
+  const [targetLanguage, setTargetLanguage] = useState<string>(
+    localStorage.getItem('targetLanguage') || 'ID'  // 默认印尼语
+  )
+  const [sourceLang, setSourceLang] = useState<string>(
+    localStorage.getItem('sourceLang') || 'AUTO'
+  )
   const [useGlossary, setUseGlossary] = useState<boolean>(true)
-  const [glossaryId, setGlossaryId] = useState<string>('')
+
+  useEffect(() => {
+    localStorage.setItem('targetLanguage', targetLanguage);
+  }, [targetLanguage]);
+
+  useEffect(() => {
+    localStorage.setItem('sourceLang', sourceLang);
+  }, [sourceLang]);
+
+  const handleSourceLangChange = (lang: string) => {
+    setSourceLang(lang);
+    localStorage.setItem('sourceLang', lang);
+  };
+
+  const handleTargetLangChange = (lang: string) => {
+    setTargetLanguage(lang);
+    localStorage.setItem('targetLanguage', lang);
+  };
 
   const validateFile = (file: File): string | null => {
     const MAX_SIZE = 30 * 1024 * 1024; // 30MB
@@ -92,7 +112,7 @@ function App() {
 
         const checkStatus = async () => {
             const response = await fetch(
-                `http://localhost:8000/api/translate/${document_id}/status`,
+                `${API_BASE_URL}/api/translate/${document_id}/status`,
                 {
                     method: 'POST',
                     headers: {
@@ -146,7 +166,7 @@ function App() {
         // 3. 下载结果
         setStatus('downloading');
         const downloadResponse = await fetch(
-            `http://localhost:8000/api/translate/${document_id}/result`,
+            `${API_BASE_URL}/api/translate/${document_id}/result`,
             {
                 method: 'POST',
                 headers: {
@@ -204,80 +224,107 @@ function App() {
     }
   }, [useGlossary, sourceLang]);
 
+  // 在 App.tsx 中添加状态检查日志  2025-04-29 上传按钮跟踪
+  useEffect(() => {
+    console.log('Current status:', {
+      mode: mode,
+      selectedFile: selectedFile?.name,
+      status: status,
+      isButtonDisabled: !selectedFile || (status !== 'idle' && status !== 'completed' && status !== 'error')
+    });
+  }, [mode, selectedFile, status]);
+
+  // 定义主标签页的 items
+  const mainTabItems = [
+    {
+      key: 'translation',
+      label: t('tabs.translation'),
+      children: (
+        <div className="card">
+          <TranslationModeSwitch mode={mode} onModeChange={setMode} />
+          <div className="translation-content">
+            {mode === 'text' ? (
+              <TextTranslate 
+                disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
+              />
+            ) : (
+              <>
+                <FileUpload
+                  onFileSelect={setSelectedFile}
+                  selectedFile={selectedFile}
+                  disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
+                />
+                <div className="language-controls">
+                  <LanguageSelect
+                    value={sourceLang}
+                    onChange={handleSourceLangChange}
+                    disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
+                    isSource={true}
+                    disableAuto={useGlossary}
+                  />
+                  <LanguageSelect
+                    value={targetLanguage}
+                    onChange={handleTargetLangChange}
+                    disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
+                  />
+                  <div className="glossary-control">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={useGlossary}
+                        onChange={(e) => setUseGlossary(e.target.checked)}
+                        disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
+                      />
+                      {t('useGlossary')}
+                    </label>
+                  </div>
+                </div>
+                <button
+                  onClick={handleTranslate}
+                  disabled={!selectedFile || (status !== 'idle' && status !== 'completed' && status !== 'error')}
+                  className="translate-button"
+                >
+                  {t('button.translate')}
+                </button>
+                <TranslationStatus status={status} errorMessage={errorMessage} />
+              </>
+            )}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'glossary',
+      label: t('tabs.glossaryManagement'),
+      children: (
+        <div className="card">
+          <Tabs
+            defaultActiveKey="databaseSearch"
+            items={[
+              {
+                key: 'databaseSearch',
+                label: t('glossary.databaseSearch'),
+                children: <GlossaryDatabaseSearch />
+              },
+              {
+                key: 'list',
+                label: t('glossary.list'),
+                children: <GlossaryList />
+              }
+            ]}
+          />
+        </div>
+      )
+    }
+  ];
+
   return (
     <div className="app-container">
       <div className="container">
         <div className="header">
           <h1>{t('title')}</h1>
         </div>
-        <Tabs defaultActiveKey="translation" className="main-tabs">
-          <Tabs.TabPane tab={t('tabs.translation')} key="translation">
-            <div className="card">
-              <TranslationModeSwitch mode={mode} onModeChange={setMode} />
-              <div className="translation-content">
-                {mode === 'text' ? (
-                  <TextTranslate 
-                    disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
-                  />
-                ) : (
-                  <>
-                    <FileUpload
-                      onFileSelect={setSelectedFile}
-                      selectedFile={selectedFile}
-                      disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
-                    />
-                    <div className="language-controls">
-                      <LanguageSelect
-                        value={sourceLang}
-                        onChange={setSourceLang}
-                        disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
-                        isSource={true}
-                        disableAuto={useGlossary}
-                      />
-                      <LanguageSelect
-                        value={targetLanguage}
-                        onChange={setTargetLanguage}
-                        disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
-                      />
-                      <div className="glossary-control">
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={useGlossary}
-                            onChange={(e) => setUseGlossary(e.target.checked)}
-                            disabled={status !== 'idle' && status !== 'completed' && status !== 'error'}
-                          />
-                          {t('useGlossary')}
-                        </label>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleTranslate}
-                      disabled={!selectedFile || (status !== 'idle' && status !== 'completed' && status !== 'error')}
-                      className="translate-button"
-                    >
-                      {t('button.translate')}
-                    </button>
-                    <TranslationStatus status={status} errorMessage={errorMessage} />
-                  </>
-                )}
-              </div>
-            </div>
-          </Tabs.TabPane>
-          
-          <Tabs.TabPane tab={t('tabs.glossaryManagement')} key="glossary">
-            <div className="card">
-              <Tabs defaultActiveKey="list">
-                <Tabs.TabPane tab={t('glossary.list')} key="list">
-                  <GlossaryList />
-                </Tabs.TabPane>
-                <Tabs.TabPane tab={t('glossary.databaseSearch')} key="databaseSearch">
-                  <GlossaryDatabaseSearch />
-                </Tabs.TabPane>
-              </Tabs>
-            </div>
-          </Tabs.TabPane>
-        </Tabs>
+        <Tabs defaultActiveKey="translation" className="main-tabs" items={mainTabItems} />
       </div>
       <Footer />
     </div>

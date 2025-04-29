@@ -15,4 +15,6 @@ export interface Dictionary {
   export interface GlossaryEntry {
     source: string;
     target: string;
+    source_lang: string;
+    target_lang: string;
   }

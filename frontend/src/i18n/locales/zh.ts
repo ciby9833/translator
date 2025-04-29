@@ -35,7 +35,7 @@ export default {
       creatingGlossary: '正在创建术语表...'
     },
     button: {
-      translate: '翻译文档',
+      translate: '文档翻译',
       copy: '复制'
     },
     translator: {
@@ -89,6 +89,8 @@ export default {
       namePlaceholder: "输入术语表名称",
       entriesPlaceholder: "按格式输入术语：源术语[Tab键]目标术语",
       totalEntries: "总条目数",
+      updatedAt: "更新时间",
+      termCreatedAt: "词汇创建时间",
       languages: "语言",
       actions: "操作",
       entriesNotAvailable: "条目不可用",
@@ -108,6 +110,9 @@ export default {
         sourceLang: "源语言",
         targetLang: "目标语言",
         selectLanguage: "请选择语言",
+        sourceLangTip: '选择源语言，可清除重置',
+        targetLangTip: '选择目标语言，可清除重置',
+        reset: '重置',
         submit: "查询"
       },
       view: "查看",
