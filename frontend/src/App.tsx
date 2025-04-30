@@ -7,12 +7,18 @@ import TranslationStatus from './components/TranslationStatus'
 import TextTranslate from './components/TextTranslate'
 import TranslationModeSwitch from './components/TranslationModeSwitch'
 import Footer from './components/Footer'
-import { Tabs } from 'antd'
+import { Tabs, Dropdown } from 'antd'
 import { GlossaryList, GlossaryEditor } from './components/GlossaryManager'
 import './style.css'
 import { translateDocument } from './services/api'
 import GlossaryDatabaseSearch from './components/GlossaryManager/GlossaryDatabaseSearch'
 import { API_BASE_URL } from './config/env'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { AuthCallback } from './pages/AuthCallback'
+import { FeishuLogin } from './components/Auth/FeishuLogin'
+import { authApi } from './services/auth'
+import type { MenuProps } from 'antd'
+import { UserOutlined } from '@ant-design/icons'
 
 export type TranslationStatus = 
     'idle' | 
@@ -25,6 +31,76 @@ export type TranslationStatus =
     'completed' | 
     'error';
 export type TranslationMode = 'text' | 'document';
+
+// 添加路由保护组件
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const navigate = useNavigate();
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const userInfo = localStorage.getItem('user_info');
+      const accessToken = localStorage.getItem('access_token');
+      const expiresAt = localStorage.getItem('expires_at');
+      
+      console.log('验证登录状态:', {
+        hasUserInfo: !!userInfo,
+        hasAccessToken: !!accessToken,
+        expiresAt: expiresAt
+      });
+
+      if (!userInfo || !accessToken || !expiresAt) {
+        console.log('未找到登录信息，跳转到登录页');
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      const now = Date.now() / 1000;   // 作用：获取当前时间戳
+      const expiresTime = Number(expiresAt);
+      
+      // 如果距离过期还有1小时，就刷新token
+      if (expiresTime - now < 3600) {
+        try {
+          const response = await fetch('/api/auth/refresh', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem('expires_at', data.expires_at.toString());
+          }
+        } catch (error) {
+          console.error('Token refresh failed:', error);
+        }
+      }
+      
+      // 如果已过期，跳转到登录页
+      if (now >= expiresTime) {
+        localStorage.removeItem('user_info');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('expires_at');
+        navigate('/login', { replace: true });
+        return;
+      }
+      
+      setIsChecking(false);
+    };
+
+    checkAuth();
+  }, [navigate]);
+
+  if (isChecking) {
+    return (
+      <div className="loading-container">
+        <div className="loading">加载中...</div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+};
 
 function App() {
   const { t } = useTranslation()
@@ -39,6 +115,7 @@ function App() {
     localStorage.getItem('sourceLang') || 'AUTO'
   )
   const [useGlossary, setUseGlossary] = useState<boolean>(true)
+  const [userInfo, setUserInfo] = useState<any>(null);
 
   useEffect(() => {
     localStorage.setItem('targetLanguage', targetLanguage);
@@ -47,6 +124,13 @@ function App() {
   useEffect(() => {
     localStorage.setItem('sourceLang', sourceLang);
   }, [sourceLang]);
+
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+  }, []);
 
   const handleSourceLangChange = (lang: string) => {
     setSourceLang(lang);
@@ -234,6 +318,20 @@ function App() {
     });
   }, [mode, selectedFile, status]);
 
+  const handleLogout = () => {
+    authApi.logout();
+  };
+
+  // 下拉菜单项
+  const dropdownItems: MenuProps['items'] = [
+    {
+      key: 'logout',
+      label: '退出登录',
+      danger: true,
+      onClick: handleLogout,
+    },
+  ];
+
   // 定义主标签页的 items
   const mainTabItems = [
     {
@@ -319,15 +417,41 @@ function App() {
   ];
 
   return (
-    <div className="app-container">
-      <div className="container">
-        <div className="header">
-          <h1>{t('title')}</h1>
-        </div>
-        <Tabs defaultActiveKey="translation" className="main-tabs" items={mainTabItems} />
-      </div>
-      <Footer />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<FeishuLogin />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/" element={
+          <ProtectedRoute>
+            <div className="app-container">
+              <div className="container">
+                <div className="header">
+                  <h1>{t('title')}</h1>
+                  {userInfo && (
+                    <Dropdown menu={{ items: dropdownItems }} placement="bottomRight">
+                      <div className="user-info">
+                        {userInfo.avatar_url ? (
+                          <img 
+                            src={userInfo.avatar_url} 
+                            alt="avatar" 
+                            className="user-avatar" 
+                          />
+                        ) : (
+                          <UserOutlined className="user-avatar-icon" />
+                        )}
+                        <span className="user-name">{userInfo.name}</span>
+                      </div>
+                    </Dropdown>
+                  )}
+                </div>
+                <Tabs defaultActiveKey="translation" className="main-tabs" items={mainTabItems} />
+              </div>
+              <Footer />
+            </div>
+          </ProtectedRoute>
+        } />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

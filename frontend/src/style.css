@@ -118,7 +118,48 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2rem;
+    padding: 16px 24px;
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+  }
+  
+  .user-info:hover {
+    background-color: #f5f5f5;
+  }
+  
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  
+  .user-avatar-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #999;
+  }
+  
+  .user-name {
+    color: #333;
+    font-size: 14px;
+    margin-right: 4px;
   }
   
   .language-switch {
@@ -326,4 +367,25 @@
   
   .glossary-results-table .ant-table-tbody > tr:hover > td {
     background: #f5f5f5;
+  }
+  
+  /* 移动端适配 */
+  @media (max-width: 480px) {
+    .header {
+      padding: 12px 16px;
+    }
+  
+    .user-info {
+      padding: 2px 4px;
+    }
+  
+    .user-avatar,
+    .user-avatar-icon {
+      width: 28px;
+      height: 28px;
+    }
+  
+    .user-name {
+      font-size: 13px;
+    }
   }

@@ -120,3 +120,107 @@ class GlossaryManager:
 2. 术语翻译的一致性（通过 DeepL 术语表）
 3. 高效的文档处理（通过分块处理）
 4. 可靠的数据管理（通过本地缓存和同步）
+
+
+我来帮你总结一下后端项目的主要结构和功能：
+
+1. 项目架构
+```
+backend/
+├── models/
+│   └── glossary.py         # 数据库模型定义
+├── services/
+│   ├── document_processor.py    # 文档处理服务
+│   ├── document_chunker.py      # 文档分块服务
+│   ├── term_extractor.py        # 术语提取服务
+│   ├── glossary_manager.py      # 术语表管理服务
+│   └── local_glossary_manager.py # 本地术语表管理服务
+└── main.py                 # FastAPI 主应用
+```
+
+2. 核心功能模块：
+
+a) 翻译服务：
+- 支持 DeepL 和 Google 两种翻译服务
+- DeepL 为主要翻译服务，支持文档和文本翻译
+- 支持自动语言检测和术语表集成
+
+b) 术语表管理：
+```python
+# models/glossary.py
+class Glossary(Base):
+    # 术语表基本信息
+    id = Column(Integer, primary_key=True)
+    deepl_glossary_id = Column(String(255), unique=True)
+    name = Column(String(255))
+    source_lang = Column(String(10))
+    target_lang = Column(String(10))
+
+class GlossaryEntry(Base):
+    # 术语表条目
+    id = Column(Integer, primary_key=True)
+    glossary_id = Column(Integer, ForeignKey("glossaries.id"))
+    source_term = Column(String(1024))
+    target_term = Column(String(1024))
+```
+
+c) API 端点：
+- 文档翻译：`/api/translate`
+- 文本翻译：`/api/translate/text`
+- 术语表管理：
+  - 创建：`/api/create-glossary`
+  - 查询：`/api/glossaries`
+  - 搜索：`/api/glossaries-search`
+  - 更新：`/api/glossaries/{id}`
+  - 删除：`/api/glossaries/{id}`
+
+3. 环境配置：
+```python
+# .env
+DEEPL_API_KEY=xxx
+DEEPL_API_TYPE=pro
+GEMINI_API_KEY=xxx
+MAX_CHUNK_SIZE=30000
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=xxx
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=translation
+```
+
+4. 主要特性：
+
+a) 文档处理：
+- 支持 PDF、DOCX、PPTX 格式
+- 文件大小限制：30MB
+- 自动分块处理大文档
+
+b) 术语表功能：
+- 自动术语提取
+- 术语表创建和管理
+- 支持术语搜索和更新
+- 本地数据库存储和同步
+
+c) 错误处理：
+- 详细的错误日志记录
+- 自定义错误类型
+- HTTP 异常处理
+
+d) 安全特性：
+- CORS 配置
+- API 密钥管理
+- 数据库连接池
+
+5. 数据库配置：
+- 使用 PostgreSQL
+- 连接池配置
+- 事务管理
+- 模型关系映射
+
+6. 性能优化：
+- 异步处理
+- 连接池管理
+- 文档分块处理
+- 缓存机制
+
+这个后端项目主要是一个专业的翻译服务系统，集成了 DeepL API，并提供了完整的术语表管理功能。系统设计合理，包含了必要的错误处理和性能优化措施。主要特点是支持文档翻译和术语表管理的深度集成，可以提供更准确的专业领域翻译服务。

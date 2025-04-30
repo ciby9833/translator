@@ -10,7 +10,7 @@ const Footer = () => {
     <footer className="footer">
       <div className="footer-content">
         <div className="copyright">
-          © {currentYear} Wu Chuan. {t('footer.allRightsReserved')}
+          © {currentYear} JT Cargo. {t('footer.allRightsReserved')}
         </div>
         <LanguageSwitch />
       </div>

@@ -1,0 +1,238 @@
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import RedirectResponse, JSONResponse
+import httpx
+import os
+from typing import Optional
+import traceback
+import logging
+import json
+import urllib.parse
+from datetime import datetime, timedelta
+import secrets
+from sqlalchemy.orm import Session
+from .models import User
+from fastapi import Depends
+from database import get_db
+
+router = APIRouter()
+
+FEISHU_APP_ID = os.getenv("FEISHU_APP_ID")
+FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET")
+FEISHU_REDIRECT_URI = os.getenv("FEISHU_REDIRECT_URI")
+FEISHU_TENANT_KEY = os.getenv("FEISHU_TENANT_KEY")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+# 添加常量配置飞书token过期时间
+TOKEN_EXPIRE_HOURS = 168  # token 过期时间，168小时
+
+logger = logging.getLogger(__name__)
+
+@router.get("/api/auth/feishu/login")
+async def feishu_login():
+    """生成飞书授权链接"""
+    # 生成随机状态值
+    state = secrets.token_urlsafe(16)
+    
+    auth_url = (
+        "https://open.feishu.cn/open-apis/authen/v1/index"
+        f"?app_id={FEISHU_APP_ID}"
+        f"&redirect_uri={FEISHU_REDIRECT_URI}"
+        f"&state={state}"  # 添加状态参数
+    )
+    
+    logger.info(f"Generated auth URL with state: {state}")
+    return {"auth_url": auth_url}
+
+@router.get("/api/auth/feishu/callback")
+async def feishu_callback(code: str, state: str, db: Session = Depends(get_db)):
+    """处理飞书回调"""
+    try:
+        logger.info(f"Received callback with state: {state}")
+        logger.info("Starting Feishu callback process")
+        
+        # 1. 获取访问令牌
+        async with httpx.AsyncClient() as client:
+            logger.info("Requesting access token from Feishu")
+            token_response = await client.post(
+                "https://open.feishu.cn/open-apis/authen/v1/access_token",
+                json={
+                    "app_id": FEISHU_APP_ID,
+                    "app_secret": FEISHU_APP_SECRET,
+                    "grant_type": "authorization_code",
+                    "code": code
+                }
+            )
+            token_data = token_response.json()
+            logger.info("Access token received successfully")
+            
+            if token_response.status_code != 200:
+                logger.error(f"Failed to get access token: {token_data}")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/login?error=token_failed"
+                )
+            
+            access_token = token_data["data"]["access_token"]
+
+        # 2. 获取用户信息
+        async with httpx.AsyncClient() as client:
+            logger.info("Requesting user info from Feishu")
+            user_response = await client.get(
+                "https://open.feishu.cn/open-apis/authen/v1/user_info",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            user_data = user_response.json()
+            
+            if user_response.status_code != 200:
+                logger.error(f"Failed to get user info: {user_data}")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/login?error=user_info_failed"
+                )
+
+            logger.info(f"User info received for user: {user_data['data']['name']}")
+
+            # 添加响应内容检查
+            if not user_data.get("data"):
+                logger.error(f"Invalid user data response: {user_data}")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/login?error=invalid_user_data"
+                )
+            
+            required_fields = ["name", "email", "tenant_key"]
+            missing_fields = [
+                field for field in required_fields 
+                if not user_data["data"].get(field)
+            ]
+            
+            if missing_fields:
+                logger.error(f"Missing required fields: {missing_fields}")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/login?error=missing_user_data"
+                )
+
+            # 3. 验证用户所属组织
+            user_tenant_key = user_data.get("data", {}).get("tenant_key")
+            
+            if not user_tenant_key:
+                logger.error("No tenant key in user data")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/login?error=no_tenant_key"
+                )
+
+            # 4. 验证用户是否属于配置的组织
+            if user_tenant_key != FEISHU_TENANT_KEY:
+                logger.warning(f"Unauthorized tenant access attempt: {user_tenant_key}")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/login?error=unauthorized_org"
+                )
+
+            # 5. 添加过期时间
+            expires_at = datetime.now() + timedelta(hours=TOKEN_EXPIRE_HOURS)
+            logger.info(f"Token will expire at: {expires_at}")
+
+            # 获取用户信息后，存储或更新用户记录
+            feishu_user_id = user_data["data"]["user_id"]
+            
+            # 查找现有用户
+            user = db.query(User).filter(User.feishu_user_id == feishu_user_id).first()
+            
+            # 准备用户数据
+            user_info = {
+                "feishu_user_id": feishu_user_id,
+                "name": user_data["data"]["name"],
+                "en_name": user_data["data"].get("en_name"),
+                "email": user_data["data"].get("email"),
+                "mobile": user_data["data"].get("mobile"),
+                "avatar_url": user_data["data"].get("avatar_url"),
+                "tenant_key": user_data["data"]["tenant_key"],
+                "access_token": access_token,
+                "token_expires_at": expires_at
+            }
+
+            if user:
+                # 更新现有用户
+                for key, value in user_info.items():
+                    setattr(user, key, value)
+                user.update_login(access_token, expires_at)
+                logger.info(f"Updated user information for: {user.name}")
+            else:
+                # 创建新用户
+                user = User(**user_info)
+                user.last_login_at = datetime.utcnow()
+                user.login_count = 1
+                db.add(user)
+                logger.info(f"Created new user: {user.name}")
+
+            try:
+                db.commit()
+                logger.info("Database transaction committed successfully")
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Database transaction failed: {str(e)}")
+                raise
+
+            # 构建认证数据时添加用户ID
+            auth_data = {
+                "status": "success",
+                "user_info": {
+                    "id": str(user.id),  # UUID需要转换为字符串
+                    "name": user.name,
+                    "en_name": user.en_name,
+                    "email": user.email,
+                    "avatar_url": user.avatar_url,
+                    "tenant_key": user.tenant_key,
+                    "feishu_user_id": user.feishu_user_id
+                },
+                "access_token": access_token,
+                "expires_at": expires_at.timestamp()
+            }
+
+            # 7. 重定向到前端
+            encoded_data = urllib.parse.quote(json.dumps(auth_data))
+            redirect_url = f"{FRONTEND_URL}/auth/callback?data={encoded_data}"
+            
+            logger.info("Authentication successful, redirecting to frontend")
+            return RedirectResponse(url=redirect_url)
+
+    except Exception as e:
+        logger.error(f"Authentication failed: {str(e)}")
+        logger.error(traceback.format_exc())
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/login?error=auth_failed"
+        )
+
+# 刷新token
+@router.get("/api/auth/refresh")
+async def refresh_token(current_token: str, db: Session = Depends(get_db)):
+    try:
+        # 查找用户
+        user = db.query(User).filter(User.access_token == current_token).first()
+        if not user:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Invalid token"}
+            )
+        
+        # 检查token是否过期
+        if user.token_expires_at < datetime.utcnow():
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Token expired"}
+            )
+            
+        # 生成新的过期时间
+        new_expires_at = datetime.now() + timedelta(hours=TOKEN_EXPIRE_HOURS)
+        
+        # 更新用户token过期时间
+        user.token_expires_at = new_expires_at
+        db.commit()
+        
+        return {
+            "expires_at": new_expires_at.timestamp()
+        }
+    except Exception as e:
+        logger.error(f"Token refresh failed: {str(e)}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Token refresh failed"}
+        )

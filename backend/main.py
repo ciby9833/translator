@@ -23,6 +23,7 @@ from fastapi import Depends
 from database import get_db
 from sqlalchemy.sql import text
 from services.local_glossary_manager import LocalGlossaryManager
+from auth.oauth import router as auth_router
 
 # 加载环境变量
 load_dotenv()
@@ -293,11 +294,14 @@ app = FastAPI(title="CargoPPT Translation API")
 # 添加 CORS 中间件配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://8.215.32.251"],  # 添加服务器域名
+    allow_origins=["http://localhost:5173", "https://translation.jtcargo.co.id"],  # 添加服务器域名
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加认证路由
+app.include_router(auth_router)
 
 @app.get("/api/translators")
 def get_available_translators():
