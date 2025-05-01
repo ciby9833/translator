@@ -236,3 +236,33 @@ async def refresh_token(current_token: str, db: Session = Depends(get_db)):
             status_code=500,
             content={"error": "Token refresh failed"}
         )
+
+# 验证当前用户用于查询数据库用户
+async def get_current_user(
+    db: Session = Depends(get_db),
+    access_token: str = None
+) -> User:
+    """验证当前用户"""
+    if not access_token:
+        # 从请求头获取 token
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "NO_TOKEN", "message": "No access token provided"}
+        )
+    
+    # 查找用户
+    user = db.query(User).filter(User.access_token == access_token).first()
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "INVALID_TOKEN", "message": "Invalid access token"}
+        )
+    
+    # 检查 token 是否过期
+    if user.token_expires_at < datetime.utcnow():
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "TOKEN_EXPIRED", "message": "Token has expired"}
+        )
+    
+    return user

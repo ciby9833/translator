@@ -51,7 +51,9 @@ export default {
       translatedPlaceholder: "Hasil terjemahan akan muncul di sini",
       translate: "Terjemahkan",
       translating: "Menerjemahkan...",
-      characterLimit: "Batas karakter: {count}/3000"
+      characterLimit: "Batas karakter: {count}/3000",
+      useAI: "Gunakan AI Terjemahan",
+      useDeepL: "Gunakan Terjemahan Biasa"
     },
     footer: {
       allRightsReserved: 'Hak Cipta Dilindungi'

@@ -1,0 +1,39 @@
+/* frontend/src/pages/UserManagement.css */
+.user-management-card {
+    margin: 24px;
+  }
+  
+  .user-management-card .ant-card-head {
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .user-management-card .ant-table-wrapper {
+    margin-top: 16px;
+  }
+
+  .status-tag {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .status-tag.active {
+    background-color: #e6f7ff;
+    color: #1890ff;
+  }
+
+  .status-tag.inactive {
+    background-color: #fff1f0;
+    color: #ff4d4f;
+  }
+
+  @media (max-width: 768px) {
+    .user-management-card {
+      margin: 12px;
+    }
+    
+    .ant-card-extra {
+      margin-left: 0;
+      margin-top: 12px;
+    }
+  }

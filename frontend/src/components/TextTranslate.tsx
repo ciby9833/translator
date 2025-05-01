@@ -2,8 +2,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import './TextTranslate.css';
-import { translateText } from '../services/api';
+import { translateText, translateMultilingual } from '../services/api';
 import { debounce } from 'lodash';
+import { Switch } from 'antd';  // 添加 Switch 组件导入
 
 interface TextTranslateProps {
   disabled?: boolean;
@@ -15,6 +16,16 @@ interface Language {
   autoDetect?: boolean;
 }
 
+interface AITranslationResult {
+  status: string;
+  translations: {
+    detected_language: string;
+    english: string;
+    chinese: string;
+    indonesian: string;
+  };
+}
+
 const LANGUAGES: Language[] = [
   { code: 'AUTO', name: '自动检测', autoDetect: true },
   { code: 'ID', name: '印尼语' },
@@ -23,7 +34,7 @@ const LANGUAGES: Language[] = [
 ];
 
 // 修改常量配置
-const DEBOUNCE_DELAY = 3000; // 修改为3秒延迟
+const DEBOUNCE_DELAY = 500; // 修改为500毫秒延迟
 const MAX_CHARACTERS = 3000;
 
 // 添加工具函数处理空白字符
@@ -35,6 +46,31 @@ const removeExtraWhitespace = (text: string) => {
 const isLastCharSpace = (text: string) => {
   return text.charAt(text.length - 1) === ' ';
 };
+
+// 添加输入验证工具函数
+const isValidInput = (text: string): boolean => {
+  // 如果是空或者只包含空白字符
+  if (!text || !text.trim()) {
+    return false;
+  }
+
+  // 检查是否只包含特殊字符
+  const specialCharsOnly = /^[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]*$/;
+  if (specialCharsOnly.test(text.trim())) {
+    return false;
+  }
+
+  // 至少包含一个有效字符（字母、数字、中文等）
+  const hasValidChars = /[a-zA-Z0-9\u4e00-\u9fa5]/;
+  return hasValidChars.test(text);
+};
+
+// 添加缓存接口定义
+interface TranslationCache {
+  text: string;
+  targetLang: string;
+  result: string;
+}
 
 const TextTranslate = ({ disabled }: TextTranslateProps) => {
   const { t } = useTranslation();
@@ -56,56 +92,161 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
   const [lastValidText, setLastValidText] = useState('');
   const [pendingText, setPendingText] = useState('');
 
-  // 修改自动翻译函数，将 debounce 移到组件外部
+  // 添加翻译缓存状态
+  const [translationCache, setTranslationCache] = useState<TranslationCache[]>([]);
+  const MAX_CACHE_SIZE = 50; // 最大缓存数量
+
+  // 添加 AI 翻译开关状态
+  const [useAI, setUseAI] = useState<boolean>(true);  // 默认启用 AI
+
+  // 添加缓存查找函数
+  const findInCache = (text: string, targetLang: string): string | null => {
+    const cached = translationCache.find(
+      item => item.text === text && item.targetLang === targetLang
+    );
+    return cached ? cached.result : null;
+  };
+
+  // 添加缓存更新函数
+  const updateCache = (text: string, targetLang: string, result: string) => {
+    setTranslationCache(prevCache => {
+      // 检查是否已存在相同的条目
+      const existingIndex = prevCache.findIndex(
+        item => item.text === text && item.targetLang === targetLang
+      );
+
+      if (existingIndex !== -1) {
+        // 如果存在，更新现有条目
+        const newCache = [...prevCache];
+        newCache[existingIndex] = { text, targetLang, result };
+        return newCache;
+      }
+
+      // 如果不存在，添加新条目
+      const newCache = [{ text, targetLang, result }, ...prevCache];
+      
+      // 如果超出最大缓存数量，删除最旧的条目
+      if (newCache.length > MAX_CACHE_SIZE) {
+        newCache.pop();
+      }
+
+      return newCache;
+    });
+  };
+
+  // 修改自动翻译函数
   const debouncedTranslate = useCallback(
     debounce(async (text: string, targetLang: string) => {
       const processedText = removeExtraWhitespace(text);
-      if (!processedText || disabled) return;
-      
+      if (!isValidInput(processedText) || disabled) {
+        setTranslatedText('');
+        setLastValidText('');
+        return;
+      }
+
       try {
         setIsTranslating(true);
         setError('');
-        
-        const response = await translateText(processedText, targetLang);
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
 
-        const result = await response.json();
-        setTranslatedText(result.translations[0].text);
-        setLastValidText(processedText);
+        if (useAI) {
+          // AI 翻译模式
+          const result = await translateMultilingual(processedText);
+          
+          // 语言代码映射
+          const langMap: Record<string, keyof typeof result.translations> = {
+            'en': 'english',
+            'zh': 'chinese',
+            'id': 'indonesian'
+          };
+          
+          const targetLangKey = langMap[targetLang.toLowerCase()];
+          if (!targetLangKey) {
+            throw new Error(`Unsupported target language: ${targetLang}`);
+          }
+          
+          const translatedText = result.translations[targetLangKey];
+          if (!translatedText) {
+            throw new Error(`No translation available for ${targetLang}`);
+          }
+          
+          // 更新缓存和状态
+          updateCache(processedText, targetLang, translatedText);
+          setTranslatedText(translatedText);
+          setLastValidText(processedText);
+          
+        } else {
+          // 原有的 DeepL 翻译逻辑
+          const response = await translateText(processedText, targetLang);
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+
+          const result = await response.json();
+          const translatedText = result.translations[0].text;
+          
+          updateCache(processedText, targetLang, translatedText);
+          setTranslatedText(translatedText);
+          setLastValidText(processedText);
+        }
       } catch (error) {
         setError(t('error.translationFailed'));
+        console.error('Translation error:', error);
       } finally {
         setIsTranslating(false);
       }
     }, DEBOUNCE_DELAY),
-    [disabled, t]
+    [disabled, useAI, t]
   );
 
-  // 添加立即翻译函数（不带防抖）
+  // 修改立即翻译函数
   const translateImmediate = useCallback(async (text: string, targetLang: string) => {
-    const processedText = removeExtraWhitespace(text);
-    if (!processedText || disabled) return;
-    
+    if (!text.trim() || disabled) {
+      setTranslatedText('');
+      return;
+    }
+
     try {
       setIsTranslating(true);
       setError('');
-      
-      const response = await translateText(processedText, targetLang);
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
 
-      const result = await response.json();
-      setTranslatedText(result.translations[0].text);
-      setLastValidText(processedText);
+      if (useAI) {
+        // 使用 AI 多语言翻译
+        const result = await translateMultilingual(text);
+        
+        // 根据目标语言选择对应的翻译结果
+        let translatedText = '';
+        switch (targetLang.toLowerCase()) {
+          case 'en':
+            translatedText = result.translations.english;
+            break;
+          case 'zh':
+            translatedText = result.translations.chinese;
+            break;
+          case 'id':
+            translatedText = result.translations.indonesian;
+            break;
+          default:
+            translatedText = '';
+        }
+        
+        setTranslatedText(translatedText);
+      } else {
+        // 使用原有的翻译方法
+        const response = await translateText(text, targetLang);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Translation failed');
+        }
+        const result = await response.json();
+        setTranslatedText(result.translations[0].text);
+      }
     } catch (error) {
       setError(t('error.translationFailed'));
+      console.error('Translation error:', error);
     } finally {
       setIsTranslating(false);
     }
-  }, [disabled, t]);
+  }, [disabled, useAI, t]);
 
   // 修改文本变化处理函数
   const handleTextChange = (text: string) => {
@@ -116,8 +257,8 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
     setHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
     
-    // 如果内容为空，直接清空翻译结果
-    if (!text.trim()) {
+    // 添加输入验证
+    if (!isValidInput(text)) {
       setTranslatedText('');
       setLastValidText('');
       return;
@@ -126,11 +267,11 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
     // 如果是空格结尾，不触发翻译
     if (isLastCharSpace(text)) return;
 
-    // 调用防抖函数，会在 3 秒内的最后一次调用后执行
+    // 调用防抖函数
     debouncedTranslate(text, targetLang);
   };
 
-  // 修改清除函数
+  // 修改清除函数，添加缓存清理选项
   const handleClear = () => {
     setSourceText('');
     setTranslatedText('');
@@ -140,6 +281,8 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
     setHistory([]);
     setHistoryIndex(-1);
     setError('');
+    // 可选：清除翻译缓存
+    // setTranslationCache([]);
   };
 
   // 修改撤销/重做函数
@@ -173,19 +316,22 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
   const handleSwapLanguages = () => {
     if (!translatedText) return;
 
-    const newSourceLang = targetLang;
+    // 如果使用 AI 翻译，不允许将源语言设置为 'AUTO'
+    const newSourceLang = useAI && targetLang === 'AUTO' ? 'ZH' : targetLang;
     const newTargetLang = sourceLang === 'AUTO' 
       ? LANGUAGES.find(lang => !lang.autoDetect)?.code || 'ZH' 
       : sourceLang;
     
+    // 保存当前的翻译结果作为新的源文本
+    const newSourceText = translatedText;
+    
+    // 更新状态
     setSourceLang(newSourceLang);
     setTargetLang(newTargetLang);
-    setSourceText(translatedText);
-    setTranslatedText('');
+    setSourceText(newSourceText);
     
-    // 更新历史记录
-    setHistory([...history.slice(0, historyIndex + 1), translatedText]);
-    setHistoryIndex(historyIndex + 1);
+    // 使用统一的翻译逻辑
+    debouncedTranslate(newSourceText, newTargetLang);
   };
 
   // 添加复制函数
@@ -201,11 +347,12 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
     }
   };
 
-  // 添加键盘快捷键处理
+  // 修改键盘快捷键处理
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Ctrl+Enter 触发翻译
     if (e.ctrlKey && e.key === 'Enter') {
-      if (sourceText.trim()) {
+      // 添加输入验证
+      if (isValidInput(sourceText)) {
         debouncedTranslate(sourceText, targetLang);
       }
     }
@@ -237,7 +384,8 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
   const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(false);
     const text = e.currentTarget.value;
-    if (text.trim() && !isLastCharSpace(text)) {
+    // 添加输入验证
+    if (isValidInput(text) && !isLastCharSpace(text)) {
       debouncedTranslate(text, targetLang);
     }
   };
@@ -279,13 +427,24 @@ const TextTranslate = ({ disabled }: TextTranslateProps) => {
     <div className="text-translate-container">
       <div className="text-area-wrapper">
         <div className="text-area-container">
+          {/* 添加 AI 翻译开关 */}
+          <div className="translation-options">
+            <Switch
+              checked={useAI}
+              onChange={(checked) => setUseAI(checked)}
+              disabled={disabled}
+              checkedChildren={t('textTranslate.useAI')}
+              unCheckedChildren={t('textTranslate.useDeepL')}
+            />
+          </div>
+          
           <div className="language-select-group">
             <select
               value={sourceLang}
               onChange={handleSourceLangChange}
               disabled={disabled || isTranslating}
             >
-              {LANGUAGES.map((lang) => (
+              {LANGUAGES.filter(lang => !useAI || !lang.autoDetect).map((lang) => (
                 <option key={lang.code} value={lang.code}>
                   {lang.autoDetect ? `${lang.name}` : lang.name}
                 </option>

@@ -40,6 +40,35 @@ export const translateText = async (text: string, targetLang: string) => {
   return response;
 };
 
+// 添加多语言翻译接口定义 ai接口
+interface MultilingualTranslationResponse {
+  status: string;
+  translations: {
+    detected_language: string;
+    english: string;
+    chinese: string;
+    indonesian: string;
+  };
+}
+
+// 添加多语言翻译方法
+export const translateMultilingual = async (text: string): Promise<MultilingualTranslationResponse> => {
+  const formData = new FormData();
+  formData.append('text', text);
+
+  const response = await fetch(createApiUrl('/api/translate/multilingual'), {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail?.message || 'Translation failed');
+  }
+
+  return response.json();
+};
+
 // 术语表相关
 interface GlossarySearchResponse {
   total: number;

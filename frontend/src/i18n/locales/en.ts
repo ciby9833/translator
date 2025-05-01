@@ -51,7 +51,9 @@ export default {
       translatedPlaceholder: "Translation will appear here",
       translate: "Translate",
       translating: "Translating...",
-      characterLimit: "Character limit: {count}/3000"
+      characterLimit: "Character limit: {count}/3000",
+      useAI: "Use AI Translation",
+      useDeepL: "Use Normal Translation"
     },
     footer: {
       allRightsReserved: 'All rights reserved'

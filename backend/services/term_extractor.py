@@ -404,6 +404,148 @@ class GeminiTermExtractor:
         
         return (source, target)
 
+    async def translate_multilingual(self, text: str) -> dict:
+        """
+        增强的多语言翻译方法，支持深度文化语境理解和跨语言转换
+        内部进行深度分析但只返回翻译结果
+        """
+        try:
+            if not self._is_valid_input(text):
+                return {
+                    "error": "Invalid input - empty, meaningless, or contains only symbols/emojis"
+                }
+
+            # 构建增强的上下文理解和翻译提示词
+            prompt = f"""
+            You are a cultural-aware multilingual translator with deep understanding of Chinese, English, and Indonesian languages, cultures, and societies.
+
+            Analyze the input text internally (DO NOT include analysis in output) for:
+            1. Language and Cultural Context:
+               - Source language and cultural background
+               - Regional variations and dialects
+               - Cultural-specific references
+               - Religious or cultural sensitivities
+
+            2. Contextual Elements:
+               - Professional/social context (formal/informal)
+               - Time-sensitive elements (festivals, seasons, events)
+               - Location-specific references
+               - Organization names and titles
+               - Colloquialisms and idioms
+
+            3. Emotional and Pragmatic Aspects:
+               - Emotional undertones
+               - Speaker's intention
+               - Social relationships implied
+               - Level of politeness
+               - Humor or irony if present
+
+            Based on the analysis, translate the text into all three languages while:
+            - Maintaining the original intention and emotional tone
+            - Adapting cultural references appropriately
+            - Using equivalent idioms or expressions when appropriate
+            - Preserving the level of formality
+            - Ensuring cultural sensitivity
+            - Adapting time and location references as needed
+
+            Input text:
+            {text}
+
+            Provide ONLY the translations in this exact format:
+            - English translation: [translation]
+            - Chinese translation: [translation]
+            - Indonesian translation: [translation]
+            """
+
+            # 调用 AI API 进行翻译
+            response = await self._generate_with_retry_backoff([{"text": prompt}])
+            
+            # 解析响应，只保留翻译结果
+            result = self._parse_translations_only(response.text)
+            
+            return result
+
+        except Exception as e:
+            logger.error(f"Enhanced multilingual translation failed: {str(e)}\n{traceback.format_exc()}")
+            return {"error": str(e)}
+
+    def _parse_translations_only(self, response: str) -> dict:
+        """
+        只解析翻译结果，不包含分析信息，返回符合前端期望的格式
+        """
+        try:
+            lines = response.strip().split('\n')
+            translations = {
+                "english": "",
+                "chinese": "",
+                "indonesian": "",
+                "detected_language": "auto"  # 添加默认值
+            }
+
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # 只解析翻译结果
+                if line.startswith('- English translation:'):
+                    translations["english"] = line.replace('- English translation:', '').strip()
+                elif line.startswith('- Chinese translation:'):
+                    translations["chinese"] = line.replace('- Chinese translation:', '').strip()
+                elif line.startswith('- Indonesian translation:'):
+                    translations["indonesian"] = line.replace('- Indonesian translation:', '').strip()
+
+            # 验证结果完整性
+            if not all(translations.values()):
+                logger.warning("Some translations are missing in the response")
+                missing_fields = [field for field, value in translations.items() if not value]
+                logger.warning(f"Missing translations for: {missing_fields}")
+
+            return translations
+
+        except Exception as e:
+            logger.error(f"Error parsing translations: {str(e)}")
+            return {
+                "english": "",
+                "chinese": "",
+                "indonesian": "",
+                "detected_language": "auto"  # 确保错误情况下也有这个字段
+            }
+
+    def _is_valid_input(self, text: str) -> bool:
+        """
+        增强的输入验证，包含更多文化语境相关的检查
+        """
+        if not text or not text.strip():
+            return False
+
+        # 移除空白字符
+        text = text.strip()
+
+        # 检查是否只包含符号和表情
+        symbols_pattern = r'^[\s!@#$%^&*()_+\-=\[\]{};:\'",.<>/?\\|~`，。！？、；：''""《》【】（）…—]+$'
+        emoji_pattern = r'[\U0001F300-\U0001F9FF]'
+        
+        if re.match(symbols_pattern, text) or re.match(emoji_pattern, text):
+            return False
+
+        # 检查是否包含有效字符（扩展支持更多语言字符）
+        valid_char_pattern = r'[a-zA-Z0-9\u4e00-\u9fff\u0080-\u024F\u0600-\u06FF\u0900-\u097F]'
+        return bool(re.search(valid_char_pattern, text))
+
+    async def translate_text_with_language_detection(self, text: str) -> dict:
+        """
+        便捷方法：翻译文本到所有支持的语言
+        """
+        if not text or not text.strip():
+            return {"error": "Empty input"}
+
+        try:
+            return await self.translate_multilingual(text)
+        except Exception as e:
+            logger.error(f"Translation failed: {str(e)}")
+            return {"error": str(e)}
+
 def validate_glossary_payload(payload: dict) -> bool:
     """验证术语表有效性"""
     try:

@@ -19,6 +19,8 @@ import { FeishuLogin } from './components/Auth/FeishuLogin'
 import { authApi } from './services/auth'
 import type { MenuProps } from 'antd'
 import { UserOutlined } from '@ant-design/icons'
+import UserManagement from './pages/UserManagement'
+import DistanceCalculator from './pages/DistanceCalculator'
 
 export type TranslationStatus = 
     'idle' | 
@@ -411,6 +413,24 @@ function App() {
               }
             ]}
           />
+        </div>
+      )
+    },
+    {
+      key: 'users',
+      label: t('tabs.userManagement'),
+      children: (
+        <div className="card">
+          <UserManagement />
+        </div>
+      )
+    },
+    {
+      key: 'distance',
+      label: t('tabs.distanceCalculator', '距离计算'),
+      children: (
+        <div className="card">
+          <DistanceCalculator />
         </div>
       )
     }

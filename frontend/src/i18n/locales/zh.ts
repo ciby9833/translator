@@ -50,7 +50,9 @@ export default {
       translatedPlaceholder: "翻译结果将显示在这里",
       translate: "翻译",
       translating: "正在翻译...",
-      characterLimit: "字符数限制：{count}/3000"
+      characterLimit: "字符数限制：{count}/3000",
+      useAI: "使用AI翻译",
+      useDeepL: "使用普通翻译"
     },
     footer: {
         allRightsReserved: '版权所有'
@@ -76,7 +78,9 @@ export default {
     },
     tabs: {
       translation: "翻译",
-      glossaryManagement: "术语表管理"
+      glossaryManagement: "术语表管理",
+      userManagement: "用户管理",
+      distanceCalculator: "距离计算"
     },
     glossary: {
       information: "术语表信息",
@@ -130,6 +134,14 @@ export default {
       filename: '已翻译_{{filename}}',
       preparing: '准备下载...',
       completed: '下载完成'
+    },
+    user: {
+      management: "用户管理",
+      name: "用户名",
+      email: "邮箱",
+      lastLogin: "最后登录时间",
+      status: "状态", 
+      searchPlaceholder: "搜索用户..."
     }
   }
 }

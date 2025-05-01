@@ -1,6 +1,6 @@
 # backend/main.py
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Body
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import os
@@ -24,6 +24,9 @@ from database import get_db
 from sqlalchemy.sql import text
 from services.local_glossary_manager import LocalGlossaryManager
 from auth.oauth import router as auth_router
+from auth.user_router import router as user_router
+from services.distance_calculator import DistanceCalculator
+from io import BytesIO
 
 # 加载环境变量
 load_dotenv()
@@ -300,8 +303,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 添加认证路由
-app.include_router(auth_router)
+# 注册路由
+app.include_router(auth_router)  # 先注册 auth 路由
+app.include_router(user_router, prefix="/api")  # 再注册用户路由
 
 @app.get("/api/translators")
 def get_available_translators():
@@ -827,4 +831,104 @@ async def delete_glossary_entry(
             status_code=500,
             detail={"code": "DELETE_ERROR", "message": str(e)}
         )
+
+# 经纬度计算
+@app.post("/api/calculate-distance")
+async def calculate_distance(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        # 验证文件类型
+        if not file.filename.endswith('.xlsx'):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_FILE_TYPE",
+                    "message": "Only Excel (.xlsx) files are supported"
+                }
+            )
+
+        # 读取文件内容
+        content = await file.read()
+        
+        # 验证文件大小
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail={
+                    "code": "FILE_TOO_LARGE",
+                    "message": "File size exceeds limit"
+                }
+            )
+
+        # 处理文件
+        calculator = DistanceCalculator()
+        result_content, output_filename = await calculator.process_excel(content, file.filename)
+
+        # 使用 ASCII 安全的文件名
+        safe_filename = datetime.now().strftime("%Y%m%d_%H%M%S") + "_distance_result.xlsx"
+
+        # 返回处理后的文件
+        return Response(
+            content=result_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing distance calculation: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "PROCESSING_ERROR",
+                "message": str(e)
+            }
+        )
+
+#使用google ai实现文本翻译
+@app.post("/api/translate/multilingual")
+async def translate_multilingual_text(text: str = Form(...)):
+    try:
+        if not text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "EMPTY_INPUT",
+                    "message": "Input text cannot be empty"
+                }
+            )
+
+        term_extractor = GeminiTermExtractor()
+        result = await term_extractor.translate_text_with_language_detection(text)
+        
+        # 确保返回的结果格式正确
+        return {
+            "status": "success",
+            "translations": {
+                "detected_language": result.get("detected_language", "auto"),
+                "english": result.get("english", ""),
+                "chinese": result.get("chinese", ""),
+                "indonesian": result.get("indonesian", "")
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Multilingual translation error: {str(e)}")
+        logger.error(traceback.format_exc())
+        return {
+            "status": "error",
+            "translations": {
+                "detected_language": "auto",
+                "english": "",
+                "chinese": "",
+                "indonesian": "",
+                "error": str(e)
+            }
+        }
 
