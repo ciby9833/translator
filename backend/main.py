@@ -30,6 +30,8 @@ from io import BytesIO
 from services.task_manager import TaskManager
 import base64
 import urllib.parse
+from services.paper_analyzer import PaperAnalyzerService
+import uuid
 
 # 加载环境变量
 load_dotenv()
@@ -1069,5 +1071,104 @@ async def delete_task(task_id: str, db: Session = Depends(get_db)):
                 "code": "DELETE_ERROR",
                 "message": "Failed to delete task"
             }
+        )
+
+# 创建服务实例独立的阅读文档
+paper_analyzer = None
+
+def get_paper_analyzer(db: Session = Depends(get_db)):
+    global paper_analyzer
+    if paper_analyzer is None:
+        paper_analyzer = PaperAnalyzerService(db)
+    return paper_analyzer
+
+@app.post("/api/paper/analyze")
+async def analyze_paper(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        content = await file.read()
+        analyzer = get_paper_analyzer(db)
+        result = await analyzer.analyze_paper(content, file.filename)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "PAPER_ANALYSIS_ERROR", "message": str(e)}
+        )
+
+@app.post("/api/paper/ask")
+async def ask_paper_question(
+    question: str = Body(...),
+    paper_id: str = Body(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        analyzer = get_paper_analyzer(db)
+        result = await analyzer.ask_question(question, paper_id)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "QUESTION_ERROR", "message": str(e)}
+        )
+
+@app.get("/api/paper/{paper_id}/content")
+async def get_paper_content(
+    paper_id: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        analyzer = get_paper_analyzer(db)
+        content = await analyzer.get_paper_content(paper_id)
+        return {"content": content}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "CONTENT_ERROR", "message": str(e)}
+        )
+
+@app.get("/api/paper/{paper_id}/questions")
+async def get_question_history(
+    paper_id: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        analyzer = get_paper_analyzer(db)
+        history = await analyzer.get_question_history(paper_id)
+        return {"history": history}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "HISTORY_ERROR", "message": str(e)}
+        )
+
+@app.post("/api/paper/{paper_id}/translate")
+async def translate_paper(
+    paper_id: str,
+    target_lang: str = Body(...),  # 直接接收字符串
+    db: Session = Depends(get_db)
+):
+    try:
+        analyzer = PaperAnalyzerService(db)
+        result = await analyzer.translate_paper(paper_id, target_lang)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "TRANSLATION_ERROR", "message": str(e)}
+        )
+
+@app.get("/api/paper/supported-languages")
+async def get_supported_languages(db: Session = Depends(get_db)):
+    try:
+        analyzer = PaperAnalyzerService(db)
+        languages = await analyzer.get_supported_languages()
+        return {"languages": languages}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "LANGUAGES_ERROR", "message": str(e)}
         )
 
