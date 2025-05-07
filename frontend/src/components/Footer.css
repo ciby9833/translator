@@ -1,9 +1,13 @@
 .footer {
   width: 100%;
-  padding: 16px 0;
+  height: 48px; /* 设置固定高度 */
+  padding: 0; /* 移除原有的 padding */
   background-color: #f8f9fa;
   border-top: 1px solid #e0e0e0;
   margin-top: auto; /* 确保footer始终在底部 */
+  flex-shrink: 0; /* 防止页脚被压缩 */
+  display: flex; /* 添加 flex 布局 */
+  align-items: center; /* 垂直居中 */
 }
 
 .footer-content {
@@ -13,11 +17,15 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  height: 100%; /* 确保内容区域占满高度 */
+  width: 100%; /* 确保内容区域占满宽度 */
 }
 
 .copyright {
   color: #666;
   font-size: 14px;
+  line-height: 48px; /* 与 footer 高度一致，确保文字垂直居中 */
+  margin-right: auto; /* 将版权信息推到左边 */
 }
 
 /* 调整语言切换器在页脚中的样式 */
@@ -29,6 +37,11 @@
   font-size: 14px;
   color: #333;
   cursor: pointer;
+  height: 32px; /* 设置固定高度 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto; /* 将语言切换器推到最右边 */
 }
 
 .footer .language-switch:hover {
@@ -39,4 +52,21 @@
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+}
+
+/* 添加响应式调整 */
+@media (max-width: 768px) {
+  .footer {
+    height: 40px; /* 在移动端稍微降低高度 */
+  }
+  
+  .copyright {
+    line-height: 40px;
+    font-size: 12px;
+  }
+  
+  .footer .language-switch {
+    height: 28px;
+    font-size: 12px;
+  }
 }

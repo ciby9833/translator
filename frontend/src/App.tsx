@@ -21,6 +21,7 @@ import type { MenuProps } from 'antd'
 import { UserOutlined } from '@ant-design/icons'
 import UserManagement from './pages/UserManagement'
 import DistanceCalculator from './pages/DistanceCalculator'
+import PaperAnalyzer from './pages/PaperAnalyzer'
 
 export type TranslationStatus = 
     'idle' | 
@@ -431,6 +432,15 @@ function App() {
       children: (
         <div className="card">
           <DistanceCalculator />
+        </div>
+      )
+    },
+    {
+      key: 'paper-analyzer',
+      label: t('tabs.paperAnalyzer', '文档分析'),
+      children: (
+        <div className="card paper-analyzer-card">
+          <PaperAnalyzer />
         </div>
       )
     }
