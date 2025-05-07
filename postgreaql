@@ -102,3 +102,69 @@ CREATE TRIGGER update_user_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+
+
+-- 创建任务表
+-- 创建 tasks 表
+CREATE TABLE tasks (
+    id VARCHAR(36) PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'queued',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    error TEXT,
+    result_data TEXT,
+    result_filename VARCHAR(255),
+    progress INTEGER DEFAULT 0,
+    file_content BYTEA
+);
+
+-- 创建索引
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_tasks_created_at ON tasks(created_at);
+CREATE INDEX idx_tasks_completed_at ON tasks(completed_at);
+
+-- 添加状态检查约束
+ALTER TABLE tasks
+ADD CONSTRAINT check_status 
+CHECK (status IN ('queued', 'processing', 'completed', 'failed'));
+
+-- 添加注释
+COMMENT ON TABLE tasks IS '存储距离计算任务信息';
+COMMENT ON COLUMN tasks.id IS '任务唯一标识符';
+COMMENT ON COLUMN tasks.filename IS '上传的文件名';
+COMMENT ON COLUMN tasks.status IS '任务状态：queued-等待中, processing-处理中, completed-已完成, failed-失败';
+COMMENT ON COLUMN tasks.created_at IS '任务创建时间';
+COMMENT ON COLUMN tasks.completed_at IS '任务完成时间';
+COMMENT ON COLUMN tasks.error IS '错误信息';
+COMMENT ON COLUMN tasks.result_data IS '计算结果数据（Base64编码）';
+COMMENT ON COLUMN tasks.result_filename IS '结果文件名';
+COMMENT ON COLUMN tasks.progress IS '任务进度（0-100）';
+COMMENT ON COLUMN tasks.file_content IS '上传的文件内容';
+
+-- 创建更新时间触发器
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.completed_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_tasks_completed_at
+    BEFORE UPDATE ON tasks
+    FOR EACH ROW
+    WHEN (NEW.status = 'completed' AND (OLD.status IS NULL OR OLD.status != 'completed'))
+    EXECUTE FUNCTION update_modified_column();
+
+
+
+    -- 修改状态检查约束，添加 cancelled 状态
+ALTER TABLE tasks DROP CONSTRAINT check_status;
+ALTER TABLE tasks
+ADD CONSTRAINT check_status 
+CHECK (status IN ('queued', 'processing', 'completed', 'failed', 'cancelled'));
+
+-- 更新表注释
+COMMENT ON COLUMN tasks.status IS '任务状态：queued-等待中, processing-处理中, completed-已完成, failed-失败, cancelled-已取消';

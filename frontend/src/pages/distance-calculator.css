@@ -91,3 +91,125 @@
     color: #ff4d4f;
     margin-top: 8px;
   }
+  
+  .tasks-section {
+    margin-top: 24px;
+    background-color: #fff;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+  
+  .tasks-section h3 {
+    margin-bottom: 16px;
+    color: #1d2129;
+  }
+  
+  .tasks-section .ant-table {
+    background-color: #fff;
+  }
+  
+  .tasks-section .ant-table-thead > tr > th {
+    background-color: #f5f5f5;
+  }
+  
+  .tasks-section .ant-table-tbody > tr:hover > td {
+    background-color: #f0f5ff;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  
+  .status-queued {
+    background-color: #e6f7ff;
+    color: #1890ff;
+  }
+  
+  .status-processing {
+    background-color: #fff7e6;
+    color: #fa8c16;
+  }
+  
+  .status-completed {
+    background-color: #f6ffed;
+    color: #52c41a;
+  }
+  
+  .status-failed {
+    background-color: #fff1f0;
+    color: #f5222d;
+  }
+  
+  .status-cancelled {
+    background-color: #f5f5f5;
+    color: #8c8c8c;
+  }
+  
+  .tasks-section .ant-btn {
+    margin-right: 8px;
+  }
+  
+  .tasks-section .ant-btn:last-child {
+    margin-right: 0;
+  }
+  
+  .ant-modal-confirm-btns .ant-btn-dangerous {
+    margin-left: 8px;
+  }
+  
+  .ant-btn .anticon {
+    margin-right: 4px;
+  }
+  
+  /* 添加新样式 */
+  .card-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+  
+  .tasks-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  
+  .instructions-content {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  
+  .instructions-content .ant-typography {
+    margin-bottom: 16px;
+  }
+  
+  .instructions-content ul {
+    padding-left: 20px;
+  }
+  
+  .instructions-content li {
+    margin-bottom: 8px;
+  }
+  
+  /* 优化按钮样式 */
+  .ant-btn-icon-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* 优化表格样式 */
+  .tasks-section .ant-table {
+    margin-top: 16px;
+  }
+  
+  .tasks-section .ant-table-thead > tr > th {
+    background-color: #fafafa;
+  }

@@ -27,6 +27,9 @@ from auth.oauth import router as auth_router
 from auth.user_router import router as user_router
 from services.distance_calculator import DistanceCalculator
 from io import BytesIO
+from services.task_manager import TaskManager
+import base64
+import urllib.parse
 
 # 加载环境变量
 load_dotenv()
@@ -832,61 +835,121 @@ async def delete_glossary_entry(
             detail={"code": "DELETE_ERROR", "message": str(e)}
         )
 
-# 经纬度计算
+# 创建任务管理器实例
+task_manager = None
+
+def get_task_manager(db: Session = Depends(get_db)):
+    """获取任务管理器实例"""
+    global task_manager
+    if task_manager is None:
+        task_manager = TaskManager(db)
+    return task_manager
+
 @app.post("/api/calculate-distance")
 async def calculate_distance(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
     try:
-        # 验证文件类型
         if not file.filename.endswith('.xlsx'):
             raise HTTPException(
                 status_code=400,
-                detail={
-                    "code": "INVALID_FILE_TYPE",
-                    "message": "Only Excel (.xlsx) files are supported"
-                }
+                detail={"code": "INVALID_FILE_TYPE", "message": "Only Excel (.xlsx) files are supported"}
             )
 
-        # 读取文件内容
         content = await file.read()
-        
-        # 验证文件大小
         if len(content) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,
-                detail={
-                    "code": "FILE_TOO_LARGE",
-                    "message": "File size exceeds limit"
-                }
+                detail={"code": "FILE_TOO_LARGE", "message": "File size exceeds limit"}
             )
 
-        # 处理文件
-        calculator = DistanceCalculator()
-        result_content, output_filename = await calculator.process_excel(content, file.filename)
-
-        # 使用 ASCII 安全的文件名
-        safe_filename = datetime.now().strftime("%Y%m%d_%H%M%S") + "_distance_result.xlsx"
-
-        # 返回处理后的文件
-        return Response(
-            content=result_content,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"
-            }
-        )
+        task_manager = get_task_manager(db)
+        task_id = await task_manager.add_task(content, file.filename)
+        
+        return {
+            "task_id": task_id,
+            "status": "queued"
+        }
 
     except Exception as e:
-        logger.error(f"Error processing distance calculation: {str(e)}")
-        logger.error(traceback.format_exc())
+        logger.error(f"Error adding task: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail={
-                "code": "PROCESSING_ERROR",
-                "message": str(e)
-            }
+            detail={"code": "TASK_ERROR", "message": str(e)}
+        )
+
+@app.get("/api/tasks")
+async def get_all_tasks(db: Session = Depends(get_db)):
+    """获取所有任务"""
+    task_manager = get_task_manager(db)
+    return task_manager.get_all_tasks()
+
+@app.get("/api/tasks/{task_id}")
+async def get_task_status(task_id: str, db: Session = Depends(get_db)):
+    """获取任务状态"""
+    task_manager = get_task_manager(db)
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "TASK_NOT_FOUND", "message": "Task not found"}
+        )
+    return task
+
+@app.get("/api/tasks/{task_id}/download")
+async def download_result(task_id: str, db: Session = Depends(get_db)):
+    try:
+        task_manager = get_task_manager(db)
+        task = task_manager.get_task(task_id)
+        
+        if not task:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "TASK_NOT_FOUND", "message": "Task not found"}
+            )
+            
+        if task['status'] != 'completed':
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "RESULT_NOT_READY", "message": "Task is not completed yet"}
+            )
+            
+        if not task.get('result_data'):
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "RESULT_NOT_FOUND", "message": "Result data not found"}
+            )
+        
+        try:
+            # 修改：使用 URL 安全的文件名处理
+            result_data = base64.b64decode(task['result_data'])
+            filename = task['result_filename'] or f"result_{task_id}.xlsx"
+            
+            # 确保文件名是 URL 安全的
+            safe_filename = urllib.parse.quote(filename)
+            
+            return Response(
+                content=result_data,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}",
+                    "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error decoding result: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail={"code": "DECODE_ERROR", "message": f"Failed to decode result: {str(e)}"}
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading result: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "DOWNLOAD_ERROR", "message": str(e)}
         )
 
 #使用google ai实现文本翻译
@@ -931,4 +994,80 @@ async def translate_multilingual_text(text: str = Form(...)):
                 "error": str(e)
             }
         }
+
+@app.post("/api/tasks/{task_id}/cancel")
+async def cancel_task(task_id: str, db: Session = Depends(get_db)):
+    """取消任务"""
+    try:
+        task_manager = get_task_manager(db)
+        try:
+            success = task_manager.cancel_task(task_id)
+            if not success:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "code": "TASK_NOT_FOUND",
+                        "message": "Task not found"
+                    }
+                )
+            return {"status": "success", "message": "Task cancelled successfully"}
+            
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_OPERATION",
+                    "message": str(e)
+                }
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling task: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "CANCEL_ERROR",
+                "message": "Failed to cancel task"
+            }
+        )
+
+@app.delete("/api/tasks/{task_id}")
+async def delete_task(task_id: str, db: Session = Depends(get_db)):
+    """删除任务"""
+    try:
+        task_manager = get_task_manager(db)
+        try:
+            success = task_manager.delete_task(task_id)
+            if not success:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "code": "TASK_NOT_FOUND",
+                        "message": "Task not found"
+                    }
+                )
+            return {"status": "success", "message": "Task deleted successfully"}
+            
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_OPERATION",
+                    "message": str(e)
+                }
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting task: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "DELETE_ERROR",
+                "message": "Failed to delete task"
+            }
+        )
 
